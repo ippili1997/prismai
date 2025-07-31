@@ -25,27 +25,21 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /app
 
-# Copy composer files
-COPY composer.json composer.lock ./
+# Copy all files first
+COPY . .
 
 # Install composer dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Copy package files
-COPY package.json package-lock.json ./
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Install npm dependencies and build assets
 RUN npm install
-COPY . .
 RUN npm run build
 
-# Cache config
-RUN php artisan config:cache
-RUN php artisan route:cache
-RUN php artisan view:cache
+# Run composer scripts after everything is in place
+RUN composer run-script post-autoload-dump
 
 # Expose port
 EXPOSE 8000
 
 # Start server
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+CMD php artisan migrate --force && php artisan config:clear && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}

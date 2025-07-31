@@ -27,5 +27,10 @@ class AppServiceProvider extends ServiceProvider
         
         // Register policies
         Gate::policy(Bucket::class, BucketPolicy::class);
+        
+        // Force HTTPS in production
+        if ($this->app->environment('production')) {
+            \URL::forceScheme('https');
+        }
     }
 }

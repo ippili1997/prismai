@@ -34,10 +34,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/buckets/{bucket}', [BucketController::class, 'destroy'])->name('buckets.destroy');
     
     // File management routes
-    Route::get('/files', [FilesController::class, 'index'])->name('files.index');
+    Route::get('/buckets/{bucket}/files', [FilesController::class, 'index'])->name('files.index');
     Route::get('/files/{bucket}/download', [FilesController::class, 'download'])->name('files.download');
     Route::delete('/files/{bucket}', [FilesController::class, 'destroy'])->name('files.destroy');
-    Route::post('/files/upload-url', [FilesController::class, 'getUploadUrl'])->name('files.upload-url');
+    Route::post('/buckets/{bucket}/upload-url', [FilesController::class, 'getUploadUrl'])->name('files.upload-url');
 });
 
 require __DIR__.'/auth.php';

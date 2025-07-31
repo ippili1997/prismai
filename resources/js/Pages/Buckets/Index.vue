@@ -34,6 +34,15 @@ const activateBucket = (bucketId: number) => {
     });
 };
 
+const activateAndBrowse = (bucketId: number) => {
+    useForm({}).post(route('buckets.activate', bucketId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            window.location.href = route('files.index', { bucket: bucketId });
+        }
+    });
+};
+
 const deleteBucket = (bucketId: number) => {
     if (confirm('Are you sure you want to remove this bucket configuration?')) {
         deletingBucket.value = bucketId;
@@ -100,17 +109,28 @@ const deleteBucket = (bucketId: number) => {
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Last Connected
                                         </th>
-                                        <th class="relative px-6 py-3">
-                                            <span class="sr-only">Actions</span>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Actions
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     <tr v-for="bucket in buckets" :key="bucket.id">
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium text-gray-900">
+                                            <Link
+                                                v-if="bucket.is_active"
+                                                :href="route('files.index', { bucket: bucket.id })"
+                                                class="text-sm font-medium text-indigo-600 hover:text-indigo-900 hover:underline cursor-pointer"
+                                            >
                                                 {{ bucket.name }}
-                                            </div>
+                                            </Link>
+                                            <button
+                                                v-else
+                                                @click="activateAndBrowse(bucket.id)"
+                                                class="text-sm font-medium text-gray-600 hover:text-indigo-600 hover:underline cursor-pointer text-left"
+                                            >
+                                                {{ bucket.name }}
+                                            </button>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
@@ -135,8 +155,8 @@ const deleteBucket = (bucketId: number) => {
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ bucket.last_connected_at || 'Never' }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div class="flex items-center justify-end space-x-2">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <div class="flex items-center space-x-2">
                                                 <SecondaryButton
                                                     @click="testConnection(bucket.id)"
                                                     class="text-xs"
@@ -150,13 +170,6 @@ const deleteBucket = (bucketId: number) => {
                                                 >
                                                     Activate
                                                 </SecondaryButton>
-                                                <Link
-                                                    v-if="bucket.is_active"
-                                                    :href="route('files.index')"
-                                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                                >
-                                                    Browse Files
-                                                </Link>
                                                 <DangerButton
                                                     @click="deleteBucket(bucket.id)"
                                                     :disabled="deletingBucket === bucket.id"

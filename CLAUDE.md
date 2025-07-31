@@ -10,11 +10,11 @@ Prism AI is a privacy-first, self-hosted cloud storage platform where users conn
 4. **Optional Intelligence**: AI features are always optional
 
 ## Current Status
-**Project Phase**: Phase 1 COMPLETE ✅
-**Status**: Core Storage Platform - Fully Implemented
+**Project Phase**: Phase 1 COMPLETE ✅ + Multi-Bucket Enhancement
+**Status**: Core Storage Platform - Fully Implemented with Enhanced Bucket Navigation
 **Frontend**: Vue 3 + Inertia.js (Laravel Breeze)
 **Backend**: Laravel 12 with AWS SDK
-**Last Updated**: July 30, 2025
+**Last Updated**: July 31, 2025
 
 ## Phase 1: Core Storage Platform (COMPLETE)
 
@@ -31,7 +31,8 @@ Prism AI is a privacy-first, self-hosted cloud storage platform where users conn
   - Add/remove bucket configurations
   - Support for both S3 and R2 providers
   - Test connection functionality
-  - Activate/deactivate buckets (only one active at a time)
+  - Activate/deactivate buckets (multiple buckets can be active)
+  - Direct bucket navigation - click any active bucket to view its files
   - Visual status indicators
   - Last connected timestamp tracking
 - **Authorization**: Policy-based access control (users only see their own buckets)
@@ -103,7 +104,7 @@ buckets:
 
 5. **Routes**:
    - Bucket management routes
-   - File management routes
+   - File management routes (now includes bucket ID: `/buckets/{bucket}/files`)
    - Pre-signed URL generation endpoint
 
 6. **Configuration**:
@@ -144,6 +145,9 @@ php artisan serve
 # Start Vite dev server (in separate terminal)
 npm run dev
 
+# Build assets for production
+npm run build
+
 # Run migrations
 php artisan migrate
 
@@ -153,9 +157,13 @@ php artisan config:clear
 
 # View logs
 tail -f storage/logs/laravel.log
+
+# Test bucket connections
+php artisan tinker
+# Then: App\Models\Bucket::find(1)->testConnection()
 ```
 
-## Phase 1 Summary
+## Phase 1 Summary + Enhancements
 All Phase 1 objectives have been successfully completed:
 - ✅ User authentication and account management
 - ✅ Bucket connection and management
@@ -164,15 +172,29 @@ All Phase 1 objectives have been successfully completed:
 - ✅ Folder navigation
 - ✅ Privacy-first architecture (no file content on servers)
 
+### Recent Enhancements (July 31, 2025):
+- ✅ **Multi-Bucket Support**: Multiple buckets can now be active simultaneously
+- ✅ **Direct Bucket Navigation**: Click any active bucket to view its files directly
+- ✅ **Improved Routing**: Files are now accessed via `/buckets/{bucket}/files`
+- ✅ **Better UX**: No need to constantly switch between buckets
+- ✅ **Bucket-Specific Operations**: All file operations now use the correct bucket context
+
 ## Next Phases (Future Development)
 
 See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 
 **Current Focus**: Phase 2 - Production Readiness & Enhanced Features
-- Database migration for multi-user support
-- Production deployment options
+- Database migration for multi-user support ✅ (Migrated to Supabase)
+- Production deployment options (Railway.app configuration prepared, not deployed)
 - Core feature improvements
 - Phase 1 feedback implementation
+
+## Production Status
+- **Database**: Successfully migrated to Supabase (PostgreSQL)
+- **Hosting**: Still running on localhost (Railway.app deployment not started)
+- **Configuration**: Railway deployment files prepared but not deployed
+- **Assets**: Pre-built for production
+- **Next Step**: Deploy to Railway.app when ready
 
 ## Security Considerations
 - All credentials are encrypted at rest
@@ -229,6 +251,28 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 - **Email**: SendGrid, Postmark, or Amazon SES for transactional emails
 - **Monitoring**: UptimeRobot, Pingdom, or Better Uptime
 - **Backups**: Automated daily backups of database and user configurations
+
+## Current Implementation Notes
+
+### Bucket Navigation System
+- Each bucket has a unique ID used in routes: `/buckets/{bucket}/files`
+- The `is_active` field now means "validated/connected" rather than "currently viewing"
+- Multiple buckets can be active (connected) simultaneously
+- Clicking on any active bucket navigates directly to its files
+- Inactive buckets show an "Activate" button to validate connection
+
+### File Operations
+- All file operations (upload, download, delete) now include bucket context
+- Pre-signed URLs are generated for the specific bucket being accessed
+- File browser maintains bucket context through navigation
+- Breadcrumb navigation includes bucket ID in all links
+
+### UI/UX Improvements
+- Removed "Files" from main navigation (access files through bucket list)
+- Active bucket names are clickable links (blue color)
+- Inactive bucket names can be clicked to activate and navigate
+- Multi-select checkboxes for bulk operations
+- File type icons with distinct colors and shapes
 
 ## Multi-Agent Development Guidelines
 

@@ -9,13 +9,14 @@ use Inertia\Inertia;
 
 class FilesController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, Bucket $bucket)
     {
-        $activeBucket = $request->user()->buckets()->where('is_active', true)->first();
+        $this->authorize('view', $bucket);
         
-        if (!$activeBucket) {
+        // Check if bucket is active (validated/connected)
+        if (!$bucket->is_active) {
             return redirect()->route('buckets.index')
-                ->with('error', 'Please activate a bucket first to browse files.');
+                ->with('error', 'This bucket is not active. Please test the connection first.');
         }
 
         $prefix = $request->get('prefix', '');
@@ -23,10 +24,10 @@ class FilesController extends Controller
         $folders = [];
         
         try {
-            $client = new S3Client($activeBucket->getClientConfig());
+            $client = new S3Client($bucket->getClientConfig());
             
             $result = $client->listObjectsV2([
-                'Bucket' => $activeBucket->bucket_name,
+                'Bucket' => $bucket->bucket_name,
                 'Prefix' => $prefix,
                 'Delimiter' => '/',
                 'MaxKeys' => 1000,
@@ -75,7 +76,7 @@ class FilesController extends Controller
             }
             
             // Update last connected timestamp
-            $activeBucket->update(['last_connected_at' => now()]);
+            $bucket->update(['last_connected_at' => now()]);
             
         } catch (\Exception $e) {
             return redirect()->route('buckets.index')
@@ -101,7 +102,7 @@ class FilesController extends Controller
         return Inertia::render('Files/Index', [
             'files' => $files,
             'folders' => $folders,
-            'activeBucket' => $activeBucket->only(['id', 'name', 'provider']),
+            'activeBucket' => $bucket->only(['id', 'name', 'provider']),
             'currentPath' => $prefix,
             'breadcrumb' => $breadcrumb,
         ]);
@@ -158,17 +159,20 @@ class FilesController extends Controller
         }
     }
     
-    public function getUploadUrl(Request $request)
+    public function getUploadUrl(Request $request, Bucket $bucket)
     {
+        $this->authorize('view', $bucket);
+        
+        // Increase execution time for this endpoint
+        set_time_limit(300); // 5 minutes
+        
         $request->validate([
             'filename' => 'required|string',
             'content_type' => 'required|string',
         ]);
         
-        $activeBucket = $request->user()->buckets()->where('is_active', true)->first();
-        
-        if (!$activeBucket) {
-            return response()->json(['error' => 'No active bucket found'], 400);
+        if (!$bucket->is_active) {
+            return response()->json(['error' => 'Bucket is not active'], 400);
         }
         
         $prefix = $request->get('prefix', '');
@@ -179,27 +183,38 @@ class FilesController extends Controller
         $key = $prefix . $filename;
         
         try {
-            $client = new S3Client($activeBucket->getClientConfig());
+            $client = new S3Client($bucket->getClientConfig());
             
             // Generate a pre-signed URL for upload (valid for 10 minutes)
-            $cmd = $client->getCommand('PutObject', [
-                'Bucket' => $activeBucket->bucket_name,
+            $params = [
+                'Bucket' => $bucket->bucket_name,
                 'Key' => $key,
                 'ContentType' => $contentType,
-            ]);
+            ];
             
-            $presignedUrl = $client->createPresignedRequest($cmd, '+10 minutes')->getUri();
+            // R2 doesn't support ACL parameter in pre-signed URLs
+            if ($bucket->provider === 's3') {
+                $params['ACL'] = 'private';
+            }
+            
+            $cmd = $client->getCommand('PutObject', $params);
+            
+            $request = $client->createPresignedRequest($cmd, '+10 minutes');
+            $presignedUrl = (string) $request->getUri();
             
             \Log::info('Generated pre-signed URL', [
-                'bucket' => $activeBucket->bucket_name,
+                'bucket' => $bucket->bucket_name,
                 'key' => $key,
                 'content_type' => $contentType,
-                'url_host' => parse_url((string) $presignedUrl, PHP_URL_HOST),
+                'method' => $request->getMethod(),
+                'url' => $presignedUrl,
             ]);
             
             return response()->json([
-                'upload_url' => (string) $presignedUrl,
+                'upload_url' => $presignedUrl,
                 'key' => $key,
+                'method' => $request->getMethod(),
+                'headers' => $request->getHeaders(),
             ]);
             
         } catch (\Exception $e) {

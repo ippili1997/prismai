@@ -47,12 +47,6 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Buckets
                                 </NavLink>
-                                <NavLink
-                                    :href="route('files.index')"
-                                    :active="route().current('files.*')"
-                                >
-                                    Files
-                                </NavLink>
                             </div>
                         </div>
 
@@ -165,12 +159,6 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('buckets.*')"
                         >
                             Buckets
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            :href="route('files.index')"
-                            :active="route().current('files.*')"
-                        >
-                            Files
                         </ResponsiveNavLink>
                     </div>
 

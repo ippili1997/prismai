@@ -111,10 +111,7 @@ class BucketController extends Controller
     {
         $this->authorize('update', $bucket);
 
-        // Deactivate all user's buckets
-        auth()->user()->buckets()->update(['is_active' => false]);
-        
-        // Activate this bucket
+        // Just activate this bucket (don't deactivate others)
         $bucket->update(['is_active' => true]);
 
         return back()->with('success', 'Bucket activated successfully!');

@@ -229,3 +229,27 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 - **Email**: SendGrid, Postmark, or Amazon SES for transactional emails
 - **Monitoring**: UptimeRobot, Pingdom, or Better Uptime
 - **Backups**: Automated daily backups of database and user configurations
+
+## Multi-Agent Development Guidelines
+
+### Working with Multiple Agents
+- **Concurrent Development**: Multiple AI agents may be working on different features simultaneously
+- **Non-Interference**: Each agent should focus on their assigned task and avoid modifying files outside their scope
+- **Communication**: Check git status before starting work to understand current state
+- **Coordination**: Review recent commits to understand what other agents have implemented
+
+### Git Commit Guidelines for Agents
+- **Selective Staging**: Only stage and commit files directly related to your assigned task
+- **Avoid Global Commits**: Never use `git add .` or `git add -A` unless specifically instructed
+- **Check Before Committing**: Always run `git status` to verify only intended files are staged
+- **Specific File Staging**: Use `git add <specific-file>` for each file you've modified
+- **Clear Commit Messages**: Include task context in commit messages (e.g., "Add search functionality to file browser")
+- **Branch Awareness**: If working on a feature branch, ensure you're on the correct branch before committing
+
+### Best Practices for Multi-Agent Development
+1. **Start with Status Check**: Begin work by checking `git status` and recent commits
+2. **Document Changes**: Update relevant documentation only for your specific changes
+3. **Test in Isolation**: Ensure your changes work independently without breaking other features
+4. **Minimal Scope**: Make the minimum changes necessary to complete your task
+5. **Preserve Others' Work**: Don't modify files unless required for your specific task
+6. **Clear Handoffs**: Leave clear comments or documentation when your work affects shared components

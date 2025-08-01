@@ -163,6 +163,82 @@ class FilesController extends Controller
         }
     }
     
+    public function getViewUrl(Request $request, Bucket $bucket)
+    {
+        $this->authorize('view', $bucket);
+        
+        $request->validate([
+            'key' => 'required|string',
+        ]);
+        
+        $key = $request->get('key');
+        
+        try {
+            $client = new S3Client($bucket->getClientConfig());
+            
+            // Get object metadata to check file size for videos
+            $headObject = $client->headObject([
+                'Bucket' => $bucket->bucket_name,
+                'Key' => $key,
+            ]);
+            
+            $size = $headObject['ContentLength'];
+            $contentType = $headObject['ContentType'] ?? 'application/octet-stream';
+            
+            // Check file size limit for videos (100MB)
+            $ext = strtolower(pathinfo($key, PATHINFO_EXTENSION));
+            $videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv'];
+            
+            if (in_array($ext, $videoExtensions) && $size > 100 * 1024 * 1024) {
+                return response()->json(['error' => 'Video files larger than 100MB cannot be previewed'], 400);
+            }
+            
+            // For text/code files, fetch the content directly if they're small enough
+            $textExtensions = ['txt', 'log', 'md', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'sass', 
+                              'html', 'xml', 'json', 'php', 'py', 'java', 'c', 'cpp', 'h', 
+                              'sql', 'sh', 'yml', 'yaml', 'env', 'gitignore'];
+            
+            if (in_array($ext, $textExtensions) && $size < 1024 * 1024) { // 1MB limit for text files
+                try {
+                    $result = $client->getObject([
+                        'Bucket' => $bucket->bucket_name,
+                        'Key' => $key,
+                    ]);
+                    
+                    $content = (string) $result['Body'];
+                    
+                    return response()->json([
+                        'view_url' => null,
+                        'content' => $content,
+                        'size' => $size,
+                        'content_type' => $contentType,
+                        'is_text' => true,
+                    ]);
+                } catch (\Exception $e) {
+                    // Fall back to pre-signed URL if direct fetch fails
+                }
+            }
+            
+            // Generate a pre-signed URL for viewing (valid for 30 minutes)
+            $cmd = $client->getCommand('GetObject', [
+                'Bucket' => $bucket->bucket_name,
+                'Key' => $key,
+            ]);
+            
+            $presignedUrl = $client->createPresignedRequest($cmd, '+30 minutes')->getUri();
+            
+            return response()->json([
+                'view_url' => (string) $presignedUrl,
+                'size' => $size,
+                'content_type' => $contentType,
+                'is_text' => false,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate view URL: ' . $e->getMessage()], 500);
+        }
+    }
+    
     public function getUploadUrl(Request $request, Bucket $bucket)
     {
         $this->authorize('view', $bucket);

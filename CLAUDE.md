@@ -297,3 +297,7 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 4. **Minimal Scope**: Make the minimum changes necessary to complete your task
 5. **Preserve Others' Work**: Don't modify files unless required for your specific task
 6. **Clear Handoffs**: Leave clear comments or documentation when your work affects shared components
+
+## Development Guidelines
+- **AI Interaction Guidelines**:
+  - Never mention that Claude wrote my code or that I am committing through Claude. Please ensure this is not done.

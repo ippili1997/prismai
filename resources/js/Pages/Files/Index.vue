@@ -5,6 +5,7 @@ import { ref } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
+import FileViewer from '@/Components/FileViewer.vue';
 import axios from 'axios';
 
 const props = defineProps({
@@ -20,6 +21,8 @@ const uploading = ref(false);
 const uploadProgress = ref(0);
 const selectedFiles = ref(new Set());
 const bulkDeleting = ref(false);
+const viewerOpen = ref(false);
+const selectedFile = ref(null);
 
 const navigateToFolder = (path) => {
     router.get(route('files.index', { bucket: props.activeBucket.id, prefix: path }));
@@ -116,6 +119,25 @@ const downloadFile = (file) => {
     });
 };
 
+const viewFile = (file) => {
+    selectedFile.value = file;
+    viewerOpen.value = true;
+};
+
+const navigateToPrevFile = () => {
+    const currentIndex = props.files.findIndex(f => f.path === selectedFile.value?.path);
+    if (currentIndex > 0) {
+        selectedFile.value = props.files[currentIndex - 1];
+    }
+};
+
+const navigateToNextFile = () => {
+    const currentIndex = props.files.findIndex(f => f.path === selectedFile.value?.path);
+    if (currentIndex < props.files.length - 1) {
+        selectedFile.value = props.files[currentIndex + 1];
+    }
+};
+
 const deleteFile = (file) => {
     if (confirm(`Are you sure you want to delete ${file.name}?`)) {
         router.delete(route('files.destroy', {
@@ -183,20 +205,26 @@ const getFileIcon = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
     const iconMap = {
         // Images
-        jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', svg: 'image', webp: 'image',
+        jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', svg: 'image', webp: 'image', bmp: 'image',
         // Videos
-        mp4: 'video', avi: 'video', mkv: 'video', mov: 'video', wmv: 'video',
+        mp4: 'video', avi: 'video', mkv: 'video', mov: 'video', wmv: 'video', webm: 'video',
         // Documents
         pdf: 'pdf',
         doc: 'word', docx: 'word',
         xls: 'excel', xlsx: 'excel', csv: 'excel',
         ppt: 'powerpoint', pptx: 'powerpoint',
-        txt: 'text',
+        txt: 'text', log: 'text', md: 'text',
         // Archives
-        zip: 'archive', rar: 'archive', tar: 'archive', gz: 'archive',
-        // Code
-        js: 'code', ts: 'code', py: 'code', java: 'code', cpp: 'code', c: 'code',
-        html: 'code', css: 'code', json: 'code', xml: 'code',
+        zip: 'archive', rar: 'archive', tar: 'archive', gz: 'archive', '7z': 'archive',
+        // Code - comprehensive list
+        js: 'code', ts: 'code', jsx: 'code', tsx: 'code',
+        py: 'code', java: 'code', cpp: 'code', c: 'code', h: 'code', hpp: 'code',
+        html: 'code', css: 'code', scss: 'code', sass: 'code', less: 'code',
+        json: 'code', xml: 'code', yaml: 'code', yml: 'code',
+        php: 'code', rb: 'code', go: 'code', rs: 'code', swift: 'code',
+        sql: 'code', sh: 'code', bash: 'code', ps1: 'code', bat: 'code',
+        vue: 'code', jsx: 'code', tsx: 'code',
+        env: 'code', gitignore: 'code', dockerfile: 'code',
     };
     
     return iconMap[ext] || 'file';
@@ -343,7 +371,7 @@ const getFileIcon = (filename) => {
                                             />
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            <div class="flex items-center">
+                                            <button @click="viewFile(file)" class="flex items-center group hover:text-indigo-600">
                                                 <!-- File type icons with unique shapes -->
                                                 <template v-if="getFileIcon(file.name) === 'image'">
                                                     <svg class="h-5 w-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -389,13 +417,12 @@ const getFileIcon = (filename) => {
                                                     </svg>
                                                 </template>
                                                 <template v-else>
-                                                    <svg class="h-5 w-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                                                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 00-2 2v6a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2 1 1 0 100-2 2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" clip-rule="evenodd" />
+                                                    <svg class="h-5 w-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                     </svg>
                                                 </template>
-                                                {{ file.name }}
-                                            </div>
+                                                <span class="group-hover:underline">{{ file.name }}</span>
+                                            </button>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ formatFileSize(file.size) }}
@@ -405,24 +432,46 @@ const getFileIcon = (filename) => {
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div class="flex items-center space-x-2">
-                                                <button
-                                                    @click="downloadFile(file)"
-                                                    class="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
-                                                    title="Download"
-                                                >
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    @click="deleteFile(file)"
-                                                    class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
+                                                <div class="relative group">
+                                                    <button
+                                                        @click="viewFile(file)"
+                                                        class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
+                                                    >
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
+                                                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                                        Preview
+                                                    </span>
+                                                </div>
+                                                <div class="relative group">
+                                                    <button
+                                                        @click="downloadFile(file)"
+                                                        class="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
+                                                    >
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                        </svg>
+                                                    </button>
+                                                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                                        Download
+                                                    </span>
+                                                </div>
+                                                <div class="relative group">
+                                                    <button
+                                                        @click="deleteFile(file)"
+                                                        class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                                    >
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                                        Delete
+                                                    </span>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -441,6 +490,15 @@ const getFileIcon = (filename) => {
             multiple
             @change="handleFileSelect"
             class="hidden"
+        />
+        
+        <!-- File Viewer Modal -->
+        <FileViewer 
+            v-model="viewerOpen"
+            :file="selectedFile"
+            :bucket-id="activeBucket.id"
+            @navigate-prev="navigateToPrevFile"
+            @navigate-next="navigateToNextFile"
         />
     </AuthenticatedLayout>
 </template>

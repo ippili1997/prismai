@@ -7,6 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import FileViewer from '@/Components/FileViewer.vue';
 import axios from 'axios';
+import { downloadZip } from 'client-zip';
 
 const props = defineProps({
     files: Array,
@@ -19,10 +20,16 @@ const props = defineProps({
 const fileInput = ref(null);
 const uploading = ref(false);
 const uploadProgress = ref(0);
-const selectedFiles = ref(new Set());
+const totalFilesToUpload = ref(0);
+const filesUploaded = ref(0);
+const selectedItems = ref(new Set());
 const bulkDeleting = ref(false);
 const viewerOpen = ref(false);
 const selectedFile = ref(null);
+const isDragging = ref(false);
+const dragCounter = ref(0);
+const downloadingFolder = ref(null);
+const downloadProgress = ref(0);
 
 const navigateToFolder = (path) => {
     router.get(route('files.index', { bucket: props.activeBucket.id, prefix: path }));
@@ -45,6 +52,12 @@ const handleFileSelect = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
     
+    // Reset progress tracking
+    totalFilesToUpload.value = files.length;
+    filesUploaded.value = 0;
+    uploadProgress.value = 0;
+    uploading.value = true;
+    
     let successCount = 0;
     let failedFiles = [];
     
@@ -52,13 +65,22 @@ const handleFileSelect = async (event) => {
         try {
             await uploadFile(file);
             successCount++;
+            filesUploaded.value++;
+            uploadProgress.value = Math.round((filesUploaded.value / totalFilesToUpload.value) * 100);
         } catch (error) {
             failedFiles.push(file.name);
+            filesUploaded.value++;
+            uploadProgress.value = Math.round((filesUploaded.value / totalFilesToUpload.value) * 100);
         }
     }
     
     // Clear the input
     event.target.value = '';
+    uploading.value = false;
+    uploadProgress.value = 0;
+    
+    // Clear selections after upload
+    selectedItems.value.clear();
     
     // Refresh the file list with appropriate message
     if (successCount > 0) {
@@ -75,14 +97,16 @@ const handleFileSelect = async (event) => {
     }
 };
 
-const uploadFile = async (file) => {
-    uploading.value = true;
-    uploadProgress.value = 0;
-    
+const uploadFile = async (file, relativePath = '') => {
     try {
+        // Construct the full path including folder structure
+        const fullPath = relativePath || file.name;
+        const filename = fullPath.split('/').pop();
+        const folderPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+        
         // Step 1: Get pre-signed upload URL from our server
         const response = await axios.post(route('files.upload-url', { bucket: props.activeBucket.id }), {
-            filename: file.name,
+            filename: fullPath,
             content_type: file.type || 'application/octet-stream',
             prefix: props.currentPath,
         });
@@ -94,9 +118,6 @@ const uploadFile = async (file) => {
             headers: {
                 'Content-Type': file.type || 'application/octet-stream',
             },
-            onUploadProgress: (progressEvent) => {
-                uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            },
         });
         
         // Upload successful, no need to reload here as it will be done in handleFileSelect
@@ -106,9 +127,6 @@ const uploadFile = async (file) => {
         console.error('Error details:', error.response);
         alert('Upload error: ' + (error.response?.data?.error || error.response?.data?.message || error.message));
         throw error; // Re-throw to be caught by handleFileSelect
-    } finally {
-        uploading.value = false;
-        uploadProgress.value = 0;
     }
 };
 
@@ -150,6 +168,72 @@ const deleteFile = (file) => {
     }
 };
 
+const deleteFolder = (folder) => {
+    if (confirm(`Are you sure you want to delete the folder "${folder.name}" and all its contents?`)) {
+        router.delete(route('files.destroy', {
+            bucket: props.activeBucket.id,
+            key: folder.path
+        }), {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }
+};
+
+const downloadFolder = async (folder) => {
+    try {
+        downloadingFolder.value = folder.path;
+        downloadProgress.value = 0;
+        
+        // Get pre-signed URLs for all files in the folder
+        const response = await axios.post(route('files.folder-download-urls', { bucket: props.activeBucket.id }), {
+            folder_path: folder.path
+        });
+        
+        const { files, folder_name, total_size, file_count } = response.data;
+        
+        if (files.length === 0) {
+            alert('This folder is empty.');
+            return;
+        }
+        
+        // Prepare files for download
+        const downloadFiles = await Promise.all(
+            files.map(async (file, index) => {
+                // Download each file
+                const response = await fetch(file.url);
+                
+                // Update progress
+                downloadProgress.value = Math.round(((index + 1) / files.length) * 100);
+                
+                return {
+                    name: file.path,
+                    input: response
+                };
+            })
+        );
+        
+        // Create and download ZIP
+        const blob = await downloadZip(downloadFiles).blob();
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${folder_name}.zip`;
+        link.click();
+        
+        // Clean up
+        URL.revokeObjectURL(link.href);
+        
+    } catch (error) {
+        console.error('Failed to download folder:', error);
+        alert('Failed to download folder: ' + (error.response?.data?.error || error.message));
+    } finally {
+        downloadingFolder.value = null;
+        downloadProgress.value = 0;
+    }
+};
+
 const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -159,43 +243,48 @@ const formatFileSize = (bytes) => {
 };
 
 // Checkbox selection handlers
-const toggleFileSelection = (file) => {
-    if (selectedFiles.value.has(file.path)) {
-        selectedFiles.value.delete(file.path);
+const toggleItemSelection = (item) => {
+    if (selectedItems.value.has(item.path)) {
+        selectedItems.value.delete(item.path);
     } else {
-        selectedFiles.value.add(file.path);
+        selectedItems.value.add(item.path);
     }
-    selectedFiles.value = new Set(selectedFiles.value); // Trigger reactivity
+    selectedItems.value = new Set(selectedItems.value); // Trigger reactivity
 };
 
 const selectAll = () => {
-    if (selectedFiles.value.size === props.files.length) {
-        selectedFiles.value.clear();
+    const totalItems = props.files.length + props.folders.length;
+    if (selectedItems.value.size === totalItems) {
+        selectedItems.value.clear();
     } else {
-        selectedFiles.value = new Set(props.files.map(f => f.path));
+        const allPaths = [
+            ...props.files.map(f => f.path),
+            ...props.folders.map(f => f.path)
+        ];
+        selectedItems.value = new Set(allPaths);
     }
 };
 
 const deleteSelected = async () => {
-    if (selectedFiles.value.size === 0) return;
+    if (selectedItems.value.size === 0) return;
     
-    if (!confirm(`Are you sure you want to delete ${selectedFiles.value.size} file(s)?`)) {
+    if (!confirm(`Are you sure you want to delete ${selectedItems.value.size} item(s)?`)) {
         return;
     }
     
     bulkDeleting.value = true;
     
-    for (const filePath of selectedFiles.value) {
+    for (const itemPath of selectedItems.value) {
         await router.delete(route('files.destroy', {
             bucket: props.activeBucket.id,
-            key: filePath
+            key: itemPath
         }), {
             preserveState: false,
             preserveScroll: true,
         });
     }
     
-    selectedFiles.value.clear();
+    selectedItems.value.clear();
     bulkDeleting.value = false;
     router.reload();
 };
@@ -229,6 +318,146 @@ const getFileIcon = (filename) => {
     
     return iconMap[ext] || 'file';
 };
+
+// Check if file is previewable
+const isFilePreviewable = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase();
+    const previewableExtensions = [
+        // Images
+        'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp',
+        // Videos
+        'mp4', 'webm', 'mov', 'avi', 'mkv',
+        // Audio
+        'mp3', 'wav', 'ogg', 'm4a', 'flac',
+        // PDF
+        'pdf',
+        // Text/Code
+        'txt', 'log', 'md',
+        'js', 'ts', 'jsx', 'tsx',
+        'css', 'scss', 'sass',
+        'html', 'xml', 'json',
+        'php', 'py', 'java', 
+        'c', 'cpp', 'h',
+        'sql', 'sh', 'yml', 'yaml'
+    ];
+    
+    return previewableExtensions.includes(ext);
+};
+
+// Drag and drop handlers
+const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.value++;
+    isDragging.value = true;
+};
+
+const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.value--;
+    if (dragCounter.value === 0) {
+        isDragging.value = false;
+    }
+};
+
+const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+};
+
+const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.value = false;
+    dragCounter.value = 0;
+    
+    const items = Array.from(e.dataTransfer.items);
+    const files = [];
+    
+    // Process all items to collect files
+    for (const item of items) {
+        if (item.kind === 'file') {
+            const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : item.getAsEntry();
+            if (entry) {
+                await processEntry(entry, files);
+            } else {
+                // Fallback for browsers that don't support directory upload
+                const file = item.getAsFile();
+                if (file) {
+                    files.push({ file, path: file.name });
+                }
+            }
+        }
+    }
+    
+    // Upload all collected files
+    if (files.length > 0) {
+        await uploadDroppedFiles(files);
+    }
+};
+
+// Process file system entries recursively
+const processEntry = async (entry, files, path = '') => {
+    if (entry.isFile) {
+        const file = await new Promise((resolve) => entry.file(resolve));
+        files.push({ file, path: path + file.name });
+    } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const entries = await new Promise((resolve) => {
+            reader.readEntries(resolve);
+        });
+        
+        for (const childEntry of entries) {
+            await processEntry(childEntry, files, path + entry.name + '/');
+        }
+    }
+};
+
+// Upload dropped files
+const uploadDroppedFiles = async (files) => {
+    // Reset progress tracking
+    totalFilesToUpload.value = files.length;
+    filesUploaded.value = 0;
+    uploadProgress.value = 0;
+    uploading.value = true;
+    
+    let successCount = 0;
+    let failedFiles = [];
+    
+    for (const { file, path } of files) {
+        try {
+            await uploadFile(file, path);
+            successCount++;
+            filesUploaded.value++;
+            uploadProgress.value = Math.round((filesUploaded.value / totalFilesToUpload.value) * 100);
+        } catch (error) {
+            failedFiles.push(path);
+            filesUploaded.value++;
+            uploadProgress.value = Math.round((filesUploaded.value / totalFilesToUpload.value) * 100);
+        }
+    }
+    
+    uploading.value = false;
+    uploadProgress.value = 0;
+    
+    // Clear selections after upload
+    selectedItems.value.clear();
+    
+    // Refresh the file list with appropriate message
+    if (successCount > 0) {
+        router.reload({ 
+            only: ['files', 'folders'],
+            onSuccess: () => {
+                if (failedFiles.length > 0) {
+                    alert(`${successCount} file(s) uploaded successfully. Failed to upload: ${failedFiles.join(', ')}`);
+                }
+            }
+        });
+    } else if (failedFiles.length > 0) {
+        alert(`Failed to upload: ${failedFiles.join(', ')}`);
+    }
+};
 </script>
 
 <template>
@@ -251,17 +480,17 @@ const getFileIcon = (filename) => {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                         <span v-if="uploading">Uploading... {{ uploadProgress }}%</span>
-                        <span v-else>Upload Files</span>
+                        <span v-else>Upload</span>
                     </PrimaryButton>
                     <DangerButton 
-                        v-if="selectedFiles.size > 0" 
+                        v-if="selectedItems.size > 0" 
                         @click="deleteSelected"
                         :disabled="bulkDeleting"
                     >
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        Delete Selected ({{ selectedFiles.size }})
+                        Delete Selected ({{ selectedItems.size }})
                     </DangerButton>
                 </div>
             </div>
@@ -269,7 +498,27 @@ const getFileIcon = (filename) => {
 
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div 
+                    class="bg-white overflow-hidden shadow-sm sm:rounded-lg relative"
+                    @dragenter.prevent="handleDragEnter"
+                    @dragleave.prevent="handleDragLeave"
+                    @dragover.prevent="handleDragOver"
+                    @drop.prevent="handleDrop"
+                >
+                    <!-- Drag overlay -->
+                    <div
+                        v-if="isDragging"
+                        class="absolute inset-0 z-50 bg-indigo-50 bg-opacity-90 flex items-center justify-center pointer-events-none"
+                    >
+                        <div class="text-center">
+                            <svg class="mx-auto h-12 w-12 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="mt-2 text-lg font-medium text-indigo-900">Drop files or folders here</p>
+                            <p class="text-sm text-indigo-700">Files will be uploaded to the current folder</p>
+                        </div>
+                    </div>
+                    
                     <!-- Breadcrumb -->
                     <div class="p-4 border-b border-gray-200">
                         <nav class="flex items-center space-x-2 text-sm">
@@ -299,6 +548,17 @@ const getFileIcon = (filename) => {
                             </svg>
                             <h3 class="mt-2 text-sm font-medium text-gray-900">No files</h3>
                             <p class="mt-1 text-sm text-gray-500">This folder is empty.</p>
+                            <div class="mt-6">
+                                <p class="text-sm text-gray-500">
+                                    Drag and drop files or folders here, or
+                                </p>
+                                <button
+                                    @click="triggerFileUpload"
+                                    class="mt-2 text-sm text-indigo-600 hover:text-indigo-500"
+                                >
+                                    browse to upload
+                                </button>
+                            </div>
                         </div>
 
                         <div v-else class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
@@ -309,7 +569,7 @@ const getFileIcon = (filename) => {
                                             <input
                                                 type="checkbox"
                                                 @change="selectAll"
-                                                :checked="files.length > 0 && selectedFiles.size === files.length"
+                                                :checked="(files.length + folders.length) > 0 && selectedItems.size === (files.length + folders.length)"
                                                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                             />
                                         </th>
@@ -345,19 +605,79 @@ const getFileIcon = (filename) => {
                                     </tr>
 
                                     <!-- Folders -->
-                                    <tr v-for="folder in folders" :key="folder.path" class="hover:bg-gray-50 cursor-pointer" @click="navigateToFolder(folder.path)">
-                                        <td class="px-6 py-4"></td>
+                                    <tr v-for="folder in folders" :key="folder.path" class="hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <input
+                                                type="checkbox"
+                                                :checked="selectedItems.has(folder.path)"
+                                                @change="toggleItemSelection(folder)"
+                                                @click.stop
+                                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            <div class="flex items-center">
+                                            <button @click="navigateToFolder(folder.path)" class="flex items-center group hover:text-indigo-600">
                                                 <svg class="h-5 w-5 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                                                 </svg>
-                                                {{ folder.name }}
-                                            </div>
+                                                <span class="group-hover:underline">{{ folder.name }}</span>
+                                            </button>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <div class="flex items-center space-x-2">
+                                                <!-- Preview button (disabled for folders) -->
+                                                <div class="relative group">
+                                                    <button
+                                                        disabled
+                                                        class="p-1.5 text-gray-300 cursor-not-allowed rounded-md"
+                                                    >
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
+                                                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                                        Preview not available
+                                                    </span>
+                                                </div>
+                                                <!-- Download button -->
+                                                <div class="relative group">
+                                                    <button
+                                                        @click="downloadFolder(folder)"
+                                                        :disabled="downloadingFolder === folder.path"
+                                                        class="p-1.5 transition-colors rounded-md"
+                                                        :class="downloadingFolder === folder.path ? 'text-gray-300 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700 hover:bg-blue-50'"
+                                                    >
+                                                        <svg v-if="downloadingFolder !== folder.path" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                        </svg>
+                                                        <svg v-else class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                                        {{ downloadingFolder === folder.path ? `Downloading... ${downloadProgress}%` : 'Download as ZIP' }}
+                                                    </span>
+                                                </div>
+                                                <!-- Delete button -->
+                                                <div class="relative group">
+                                                    <button
+                                                        @click="deleteFolder(folder)"
+                                                        class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                                    >
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                                        Delete Folder
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </td>
                                     </tr>
 
                                     <!-- Files -->
@@ -365,13 +685,17 @@ const getFileIcon = (filename) => {
                                         <td class="px-6 py-4">
                                             <input
                                                 type="checkbox"
-                                                :checked="selectedFiles.has(file.path)"
-                                                @change="toggleFileSelection(file)"
+                                                :checked="selectedItems.has(file.path)"
+                                                @change="toggleItemSelection(file)"
                                                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                             />
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            <button @click="viewFile(file)" class="flex items-center group hover:text-indigo-600">
+                                            <button 
+                                                @click="isFilePreviewable(file.name) ? viewFile(file) : null" 
+                                                class="flex items-center group"
+                                                :class="isFilePreviewable(file.name) ? 'hover:text-indigo-600 cursor-pointer' : 'cursor-default'"
+                                            >
                                                 <!-- File type icons with unique shapes -->
                                                 <template v-if="getFileIcon(file.name) === 'image'">
                                                     <svg class="h-5 w-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -421,7 +745,7 @@ const getFileIcon = (filename) => {
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                     </svg>
                                                 </template>
-                                                <span class="group-hover:underline">{{ file.name }}</span>
+                                                <span :class="isFilePreviewable(file.name) ? 'group-hover:underline' : ''">{{ file.name }}</span>
                                             </button>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -434,6 +758,7 @@ const getFileIcon = (filename) => {
                                             <div class="flex items-center space-x-2">
                                                 <div class="relative group">
                                                     <button
+                                                        v-if="isFilePreviewable(file.name)"
                                                         @click="viewFile(file)"
                                                         class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
                                                     >
@@ -442,8 +767,18 @@ const getFileIcon = (filename) => {
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                         </svg>
                                                     </button>
+                                                    <button
+                                                        v-else
+                                                        disabled
+                                                        class="p-1.5 text-gray-300 cursor-not-allowed rounded-md"
+                                                    >
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
                                                     <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-gray-700 bg-white rounded shadow-md border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                                                        Preview
+                                                        {{ isFilePreviewable(file.name) ? 'Preview' : 'Preview not available' }}
                                                     </span>
                                                 </div>
                                                 <div class="relative group">

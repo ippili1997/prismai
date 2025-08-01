@@ -151,15 +151,82 @@ class FilesController extends Controller
         try {
             $client = new S3Client($bucket->getClientConfig());
             
-            $client->deleteObject([
+            // Check if this is a folder by looking for objects with this prefix
+            $isFolderKey = str_ends_with($key, '/');
+            
+            // List all objects with this prefix to check if it's a folder
+            $objects = $client->listObjectsV2([
                 'Bucket' => $bucket->bucket_name,
-                'Key' => $key,
+                'Prefix' => $isFolderKey ? $key : $key . '/',
+                'MaxKeys' => 1,
             ]);
             
-            return back()->with('success', 'File deleted successfully.');
+            $isFolder = $isFolderKey || (!empty($objects['Contents']) && count($objects['Contents']) > 0);
+            
+            if ($isFolder) {
+                // Delete all objects within the folder
+                $prefix = $isFolderKey ? $key : $key . '/';
+                
+                // List all objects to delete
+                $objectsToDelete = [];
+                $continuationToken = null;
+                
+                do {
+                    $params = [
+                        'Bucket' => $bucket->bucket_name,
+                        'Prefix' => $prefix,
+                    ];
+                    
+                    if ($continuationToken) {
+                        $params['ContinuationToken'] = $continuationToken;
+                    }
+                    
+                    $result = $client->listObjectsV2($params);
+                    
+                    if (!empty($result['Contents'])) {
+                        foreach ($result['Contents'] as $object) {
+                            $objectsToDelete[] = ['Key' => $object['Key']];
+                        }
+                    }
+                    
+                    $continuationToken = $result['NextContinuationToken'] ?? null;
+                } while ($continuationToken);
+                
+                // Delete all objects if any found
+                if (!empty($objectsToDelete)) {
+                    $client->deleteObjects([
+                        'Bucket' => $bucket->bucket_name,
+                        'Delete' => [
+                            'Objects' => $objectsToDelete,
+                        ],
+                    ]);
+                }
+                
+                // Also try to delete the folder marker itself
+                if ($isFolderKey) {
+                    try {
+                        $client->deleteObject([
+                            'Bucket' => $bucket->bucket_name,
+                            'Key' => $key,
+                        ]);
+                    } catch (\Exception $e) {
+                        // Ignore if folder marker doesn't exist
+                    }
+                }
+                
+                return back()->with('success', 'Folder and all its contents deleted successfully.');
+            } else {
+                // Single file deletion
+                $client->deleteObject([
+                    'Bucket' => $bucket->bucket_name,
+                    'Key' => $key,
+                ]);
+                
+                return back()->with('success', 'File deleted successfully.');
+            }
             
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to delete file: ' . $e->getMessage());
+            return back()->with('error', 'Failed to delete: ' . $e->getMessage());
         }
     }
     
@@ -299,6 +366,78 @@ class FilesController extends Controller
             
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to generate upload URL: ' . $e->getMessage()], 500);
+        }
+    }
+    
+    public function getFolderDownloadUrls(Request $request, Bucket $bucket)
+    {
+        $this->authorize('view', $bucket);
+        
+        $request->validate([
+            'folder_path' => 'required|string',
+        ]);
+        
+        $folderPath = $request->get('folder_path');
+        
+        try {
+            $client = new S3Client($bucket->getClientConfig());
+            
+            // List all objects in the folder
+            $files = [];
+            $continuationToken = null;
+            
+            do {
+                $params = [
+                    'Bucket' => $bucket->bucket_name,
+                    'Prefix' => $folderPath,
+                ];
+                
+                if ($continuationToken) {
+                    $params['ContinuationToken'] = $continuationToken;
+                }
+                
+                $result = $client->listObjectsV2($params);
+                
+                if (!empty($result['Contents'])) {
+                    foreach ($result['Contents'] as $object) {
+                        $key = $object['Key'];
+                        
+                        // Skip folder markers
+                        if (str_ends_with($key, '/')) {
+                            continue;
+                        }
+                        
+                        // Generate pre-signed URL for each file (valid for 1 hour)
+                        $cmd = $client->getCommand('GetObject', [
+                            'Bucket' => $bucket->bucket_name,
+                            'Key' => $key,
+                        ]);
+                        
+                        $presignedUrl = $client->createPresignedRequest($cmd, '+60 minutes')->getUri();
+                        
+                        // Get relative path for ZIP structure
+                        $relativePath = str_replace($folderPath, '', $key);
+                        
+                        $files[] = [
+                            'path' => $relativePath,
+                            'url' => (string) $presignedUrl,
+                            'size' => $object['Size'],
+                        ];
+                    }
+                }
+                
+                $continuationToken = $result['NextContinuationToken'] ?? null;
+            } while ($continuationToken);
+            
+            return response()->json([
+                'files' => $files,
+                'folder_name' => basename(rtrim($folderPath, '/')),
+                'total_size' => array_sum(array_column($files, 'size')),
+                'file_count' => count($files),
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate download URLs: ' . $e->getMessage()], 500);
         }
     }
 }

@@ -10,11 +10,13 @@ Prism AI is a privacy-first, self-hosted cloud storage platform where users conn
 4. **Optional Intelligence**: AI features are always optional
 
 ## Current Status
-**Project Phase**: Phase 1 COMPLETE ✅ + Multi-Bucket Enhancement
-**Status**: Core Storage Platform - Fully Implemented with Enhanced Bucket Navigation
+**Project Phase**: Phase 1 COMPLETE ✅ + Phase 2 & 3 Features In Progress
+**Status**: Core Storage Platform + Advanced Features - Production Deployed
 **Frontend**: Vue 3 + Inertia.js (Laravel Breeze)
 **Backend**: Laravel 12 with AWS SDK
-**Last Updated**: July 31, 2025
+**Database**: Migrated to Supabase (PostgreSQL)
+**Production**: Deployed on Railway.app
+**Last Updated**: August 1, 2025
 
 ## Phase 1: Core Storage Platform (COMPLETE)
 
@@ -46,11 +48,15 @@ Prism AI is a privacy-first, self-hosted cloud storage platform where users conn
   - File download with pre-signed URLs
   - File deletion
   - Multiple file upload support
+  - ✅ **Bulk delete operations** (multi-select and delete)
 - **UI Features**:
   - Table view with file details (size, last modified)
-  - Folder icons and file icons
+  - Folder icons and file icons with distinct colors by type
   - Upload progress indicator
   - Responsive design
+  - ✅ **Multi-select checkboxes** for bulk operations
+  - ✅ **File type icons** with unique colors and shapes (images, videos, PDFs, code, etc.)
+  - ✅ **Hover tooltips** on action buttons
 - **Privacy Features**:
   - Direct browser-to-bucket uploads (files never touch our servers)
   - Pre-signed URLs for secure operations
@@ -99,13 +105,16 @@ buckets:
 4. **Vue Components**:
    - `resources/js/Pages/Buckets/Index.vue` - Bucket listing
    - `resources/js/Pages/Buckets/Create.vue` - Add bucket form
-   - `resources/js/Pages/Files/Index.vue` - File browser
+   - `resources/js/Pages/Files/Index.vue` - File browser with bulk operations
    - `resources/js/Components/FlashMessages.vue` - Toast notifications
+   - ✅ `resources/js/Components/FileViewer.vue` - **File preview modal**
 
 5. **Routes**:
    - Bucket management routes
    - File management routes (now includes bucket ID: `/buckets/{bucket}/files`)
-   - Pre-signed URL generation endpoint
+   - Pre-signed URL generation endpoints:
+     - Upload URL: `POST /buckets/{bucket}/upload-url`
+     - ✅ View URL: `POST /buckets/{bucket}/view-url` (for file preview)
 
 6. **Configuration**:
    - Updated navigation in `AuthenticatedLayout.vue`
@@ -172,12 +181,30 @@ All Phase 1 objectives have been successfully completed:
 - ✅ Folder navigation
 - ✅ Privacy-first architecture (no file content on servers)
 
-### Recent Enhancements (July 31, 2025):
+### Recent Enhancements (July 31 - August 1, 2025):
 - ✅ **Multi-Bucket Support**: Multiple buckets can now be active simultaneously
 - ✅ **Direct Bucket Navigation**: Click any active bucket to view its files directly
 - ✅ **Improved Routing**: Files are now accessed via `/buckets/{bucket}/files`
 - ✅ **Better UX**: No need to constantly switch between buckets
 - ✅ **Bucket-Specific Operations**: All file operations now use the correct bucket context
+
+### Phase 2 & 3 Features Implemented (August 1, 2025):
+- ✅ **File Preview System**: 
+  - Image viewer with zoom/pan
+  - PDF viewer
+  - Video player (up to 100MB)
+  - Audio player
+  - Text/code viewer with syntax highlighting
+  - Keyboard navigation (arrow keys, escape)
+- ✅ **Bulk Operations**:
+  - Multi-select checkboxes
+  - Select all functionality
+  - Bulk delete with confirmation
+- ✅ **Enhanced UI**:
+  - File type icons with distinct colors and shapes
+  - Hover tooltips on action buttons
+  - Preview button for viewable files
+  - Improved file navigation experience
 
 ## Next Phases (Future Development)
 
@@ -190,11 +217,11 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 - Phase 1 feedback implementation
 
 ## Production Status
-- **Database**: Successfully migrated to Supabase (PostgreSQL)
-- **Hosting**: Still running on localhost (Railway.app deployment not started)
-- **Configuration**: Railway deployment files prepared but not deployed
-- **Assets**: Pre-built for production
-- **Next Step**: Deploy to Railway.app when ready
+- ✅ **Database**: Successfully migrated to Supabase (PostgreSQL)
+- ✅ **Hosting**: Deployed on Railway.app
+- ✅ **Configuration**: Railway deployment completed
+- ✅ **Assets**: Pre-built and deployed for production
+- ✅ **Production URL**: Active and running on Railway
 
 ## Security Considerations
 - All credentials are encrypted at rest
@@ -271,8 +298,13 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 - Removed "Files" from main navigation (access files through bucket list)
 - Active bucket names are clickable links (blue color)
 - Inactive bucket names can be clicked to activate and navigate
-- Multi-select checkboxes for bulk operations
-- File type icons with distinct colors and shapes
+- ✅ Multi-select checkboxes for bulk operations
+- ✅ File type icons with distinct colors and shapes
+- ✅ File preview modal with navigation between files
+- ✅ Keyboard shortcuts in preview (arrow keys, escape)
+- ✅ Download button in preview modal
+- ✅ Smart file type detection for preview support
+- ✅ Text file content fetching for small files (<1MB)
 
 ## Multi-Agent Development Guidelines
 

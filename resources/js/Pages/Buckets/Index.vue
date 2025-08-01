@@ -2,8 +2,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import DangerButton from '@/Components/DangerButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { ref } from 'vue';
 
 interface Bucket {
@@ -22,11 +20,6 @@ const props = defineProps<{
 
 const deletingBucket = ref<number | null>(null);
 
-const testConnection = (bucketId: number) => {
-    useForm({}).post(route('buckets.test', bucketId), {
-        preserveScroll: true,
-    });
-};
 
 const activateBucket = (bucketId: number) => {
     useForm({}).post(route('buckets.activate', bucketId), {
@@ -125,98 +118,74 @@ const deleteBucket = (bucketId: number) => {
                             <p class="mt-1 text-sm text-gray-500">Get started by connecting your first storage bucket using the options above.</p>
                         </div>
 
-                        <div v-else class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Name
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Provider
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Bucket
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Status
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Last Connected
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Actions
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="bucket in buckets" :key="bucket.id">
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <Link
-                                                v-if="bucket.is_active"
-                                                :href="route('files.index', { bucket: bucket.id })"
-                                                class="text-sm font-medium text-indigo-600 hover:text-indigo-900 hover:underline cursor-pointer"
-                                            >
-                                                {{ bucket.name }}
-                                            </Link>
-                                            <button
-                                                v-else
-                                                @click="activateAndBrowse(bucket.id)"
-                                                class="text-sm font-medium text-gray-600 hover:text-indigo-600 hover:underline cursor-pointer text-left"
-                                            >
-                                                {{ bucket.name }}
-                                            </button>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                        <div v-else class="space-y-4">
+                            <div v-for="bucket in buckets" :key="bucket.id" 
+                                class="group relative border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all duration-200 cursor-pointer border-l-4"
+                                :class="{
+                                    '!border-l-green-500': bucket.provider === 's3',
+                                    '!border-l-orange-500': bucket.provider === 'r2'
+                                }"
+                                @click="bucket.is_active ? $inertia.visit(route('files.index', { bucket: bucket.id })) : null">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex items-center gap-2">
+                                                <span class="relative flex h-2 w-2">
+                                                    <span v-if="bucket.is_active" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                                    <span class="relative inline-flex rounded-full h-2 w-2"
+                                                        :class="bucket.is_active ? 'bg-green-500' : 'bg-red-500'">
+                                                    </span>
+                                                </span>
+                                                <h3 class="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                                    {{ bucket.name }}
+                                                </h3>
+                                            </div>
+                                            <span class="px-2.5 py-1 text-xs font-medium rounded-full"
                                                 :class="{
-                                                    'bg-orange-100 text-orange-800': bucket.provider === 'r2',
-                                                    'bg-green-100 text-green-800': bucket.provider === 's3'
+                                                    'bg-orange-100 text-orange-700': bucket.provider === 'r2',
+                                                    'bg-green-100 text-green-700': bucket.provider === 's3'
                                                 }">
                                                 {{ bucket.provider.toUpperCase() }}
                                             </span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ bucket.bucket_name }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span v-if="bucket.is_active" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                Active
-                                            </span>
-                                            <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                Inactive
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ bucket.last_connected_at || 'Never' }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <div class="flex items-center space-x-2">
-                                                <SecondaryButton
-                                                    @click="testConnection(bucket.id)"
-                                                    class="text-xs"
-                                                >
-                                                    Test
-                                                </SecondaryButton>
-                                                <SecondaryButton
-                                                    v-if="!bucket.is_active"
-                                                    @click="activateBucket(bucket.id)"
-                                                    class="text-xs"
-                                                >
-                                                    Activate
-                                                </SecondaryButton>
-                                                <DangerButton
-                                                    @click="deleteBucket(bucket.id)"
-                                                    :disabled="deletingBucket === bucket.id"
-                                                    class="text-xs"
-                                                >
-                                                    Remove
-                                                </DangerButton>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                        </div>
+                                        <div class="mt-2 text-sm text-gray-600">
+                                            <span class="font-mono">{{ bucket.bucket_name }}</span>
+                                        </div>
+                                        <div class="mt-1 text-xs text-gray-500">
+                                            Last connected: {{ bucket.last_connected_at || 'Never' }}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <button
+                                            v-if="bucket.is_active"
+                                            @click.stop="activateBucket(bucket.id)"
+                                            class="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                                        >
+                                            Disconnect
+                                        </button>
+                                        <button
+                                            v-else
+                                            @click.stop="activateBucket(bucket.id)"
+                                            class="px-4 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                                        >
+                                            Connect
+                                        </button>
+                                        <button
+                                            @click.stop="deleteBucket(bucket.id)"
+                                            :disabled="deletingBucket === bucket.id"
+                                            class="p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
+                                            title="Remove bucket"
+                                        >
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div v-if="bucket.is_active" class="absolute bottom-2 right-2 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Click to browse files →
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

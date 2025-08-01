@@ -107,16 +107,24 @@ class BucketController extends Controller
     }
 
     /**
-     * Set a bucket as active
+     * Toggle bucket connection status
      */
     public function activate(Bucket $bucket)
     {
         $this->authorize('update', $bucket);
 
-        // Just activate this bucket (don't deactivate others)
-        $bucket->update(['is_active' => true]);
-
-        return back()->with('success', 'Bucket activated successfully!');
+        if ($bucket->is_active) {
+            // Disconnect the bucket
+            $bucket->update(['is_active' => false]);
+            return back()->with('success', 'Bucket disconnected successfully!');
+        } else {
+            // Connect the bucket
+            $bucket->update([
+                'is_active' => true,
+                'last_connected_at' => now()
+            ]);
+            return back()->with('success', 'Bucket connected successfully!');
+        }
     }
 
     /**

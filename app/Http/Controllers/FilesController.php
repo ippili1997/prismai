@@ -604,4 +604,251 @@ class FilesController extends Controller
             return response()->json(['error' => 'Failed to rename: ' . $e->getMessage()], 500);
         }
     }
+    
+    public function getFolderTree(Request $request, Bucket $bucket)
+    {
+        $this->authorize('view', $bucket);
+        
+        try {
+            $client = new S3Client($bucket->getClientConfig());
+            
+            // List all objects to build folder tree
+            $folders = [];
+            $continuationToken = null;
+            $processedPrefixes = [];
+            
+            do {
+                $params = [
+                    'Bucket' => $bucket->bucket_name,
+                    'Delimiter' => '/',
+                ];
+                
+                if ($continuationToken) {
+                    $params['ContinuationToken'] = $continuationToken;
+                }
+                
+                // First, get root level folders
+                $this->addFoldersFromPrefix($client, $bucket->bucket_name, '', $folders, $processedPrefixes, 0);
+                
+                $continuationToken = null; // We'll handle all folders recursively
+            } while (false);
+            
+            // Sort folders by path
+            usort($folders, function($a, $b) {
+                return strcmp($a['path'], $b['path']);
+            });
+            
+            return response()->json(['folders' => $folders]);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to get folder tree: ' . $e->getMessage()], 500);
+        }
+    }
+    
+    private function addFoldersFromPrefix($client, $bucketName, $prefix, &$folders, &$processedPrefixes, $level)
+    {
+        if (in_array($prefix, $processedPrefixes)) {
+            return;
+        }
+        
+        $processedPrefixes[] = $prefix;
+        
+        $result = $client->listObjectsV2([
+            'Bucket' => $bucketName,
+            'Prefix' => $prefix,
+            'Delimiter' => '/',
+        ]);
+        
+        if (isset($result['CommonPrefixes'])) {
+            foreach ($result['CommonPrefixes'] as $commonPrefix) {
+                $folderPath = $commonPrefix['Prefix'];
+                $folderName = basename(rtrim($folderPath, '/'));
+                
+                $folders[] = [
+                    'name' => $folderName,
+                    'path' => $folderPath,
+                    'level' => $level,
+                ];
+                
+                // Recursively get subfolders
+                $this->addFoldersFromPrefix($client, $bucketName, $folderPath, $folders, $processedPrefixes, $level + 1);
+            }
+        }
+    }
+    
+    public function move(Request $request, Bucket $bucket)
+    {
+        $this->authorize('view', $bucket);
+        
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'destination' => 'nullable|string',
+            'current_path' => 'nullable|string',
+        ]);
+        
+        $items = $request->get('items');
+        $destination = $request->get('destination', '');
+        $currentPath = $request->get('current_path', '');
+        
+        // Ensure destination ends with / if it's not empty
+        if ($destination && !str_ends_with($destination, '/')) {
+            $destination .= '/';
+        }
+        
+        try {
+            $client = new S3Client($bucket->getClientConfig());
+            $errors = [];
+            $movedCount = 0;
+            
+            foreach ($items as $itemPath) {
+                try {
+                    // Determine if item is a folder
+                    $isFolder = str_ends_with($itemPath, '/');
+                    
+                    if (!$isFolder) {
+                        // Check if it's actually a folder by looking for objects with this prefix
+                        $objects = $client->listObjectsV2([
+                            'Bucket' => $bucket->bucket_name,
+                            'Prefix' => $itemPath . '/',
+                            'MaxKeys' => 1,
+                        ]);
+                        
+                        $isFolder = !empty($objects['Contents']);
+                    }
+                    
+                    // Get the item name
+                    $itemName = basename(rtrim($itemPath, '/'));
+                    
+                    // Construct new path
+                    $newPath = $destination . $itemName;
+                    if ($isFolder && !str_ends_with($newPath, '/')) {
+                        $newPath .= '/';
+                    }
+                    
+                    // Check if we're trying to move to the same location
+                    if ($itemPath === $newPath) {
+                        $errors[] = "$itemName: Already in the destination folder";
+                        continue;
+                    }
+                    
+                    // Check if we're trying to move a parent folder into its child
+                    if ($isFolder && str_starts_with($destination, $itemPath)) {
+                        $errors[] = "$itemName: Cannot move a folder into itself";
+                        continue;
+                    }
+                    
+                    if ($isFolder) {
+                        // Move folder and all its contents
+                        $oldPrefix = $itemPath;
+                        if (!str_ends_with($oldPrefix, '/')) {
+                            $oldPrefix .= '/';
+                        }
+                        
+                        // List all objects with the old prefix
+                        $objectsToMove = [];
+                        $continuationToken = null;
+                        
+                        do {
+                            $params = [
+                                'Bucket' => $bucket->bucket_name,
+                                'Prefix' => $oldPrefix,
+                            ];
+                            
+                            if ($continuationToken) {
+                                $params['ContinuationToken'] = $continuationToken;
+                            }
+                            
+                            $result = $client->listObjectsV2($params);
+                            
+                            if (!empty($result['Contents'])) {
+                                foreach ($result['Contents'] as $object) {
+                                    $objectsToMove[] = $object['Key'];
+                                }
+                            }
+                            
+                            $continuationToken = $result['NextContinuationToken'] ?? null;
+                        } while ($continuationToken);
+                        
+                        // Copy each object to the new location
+                        foreach ($objectsToMove as $oldKey) {
+                            $newKey = str_replace($oldPrefix, $newPath, $oldKey);
+                            
+                            // Copy object
+                            $client->copyObject([
+                                'Bucket' => $bucket->bucket_name,
+                                'CopySource' => $bucket->bucket_name . '/' . $oldKey,
+                                'Key' => $newKey,
+                            ]);
+                        }
+                        
+                        // Delete old objects
+                        if (!empty($objectsToMove)) {
+                            $deleteObjects = array_map(function($key) {
+                                return ['Key' => $key];
+                            }, $objectsToMove);
+                            
+                            $client->deleteObjects([
+                                'Bucket' => $bucket->bucket_name,
+                                'Delete' => [
+                                    'Objects' => $deleteObjects,
+                                ],
+                            ]);
+                        }
+                        
+                        // Handle folder marker
+                        if (!in_array($itemPath, $objectsToMove) && !in_array($oldPrefix, $objectsToMove)) {
+                            try {
+                                // Try to copy the folder marker if it exists
+                                $client->copyObject([
+                                    'Bucket' => $bucket->bucket_name,
+                                    'CopySource' => $bucket->bucket_name . '/' . $itemPath,
+                                    'Key' => $newPath,
+                                ]);
+                                
+                                // Delete the old folder marker
+                                $client->deleteObject([
+                                    'Bucket' => $bucket->bucket_name,
+                                    'Key' => $itemPath,
+                                ]);
+                            } catch (\Exception $e) {
+                                // Folder marker might not exist, which is fine
+                            }
+                        }
+                        
+                    } else {
+                        // Move single file
+                        $client->copyObject([
+                            'Bucket' => $bucket->bucket_name,
+                            'CopySource' => $bucket->bucket_name . '/' . $itemPath,
+                            'Key' => $newPath,
+                        ]);
+                        
+                        $client->deleteObject([
+                            'Bucket' => $bucket->bucket_name,
+                            'Key' => $itemPath,
+                        ]);
+                    }
+                    
+                    $movedCount++;
+                    
+                } catch (\Exception $e) {
+                    $errors[] = basename($itemPath) . ': ' . $e->getMessage();
+                }
+            }
+            
+            if ($movedCount === 0 && !empty($errors)) {
+                return response()->json(['error' => 'Failed to move items: ' . implode(', ', $errors)], 500);
+            }
+            
+            $message = "$movedCount item(s) moved successfully";
+            if (!empty($errors)) {
+                $message .= '. Errors: ' . implode(', ', $errors);
+            }
+            
+            return response()->json(['success' => true, 'message' => $message]);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to move items: ' . $e->getMessage()], 500);
+        }
+    }
 }

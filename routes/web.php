@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('buckets.index');
+    }
+    
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
@@ -42,6 +46,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/buckets/{bucket}/folder-download-urls', [FilesController::class, 'getFolderDownloadUrls'])->name('files.folder-download-urls');
     Route::post('/buckets/{bucket}/create-folder', [FilesController::class, 'createFolder'])->name('files.create-folder');
     Route::post('/buckets/{bucket}/rename', [FilesController::class, 'rename'])->name('files.rename');
+    Route::get('/buckets/{bucket}/folder-tree', [FilesController::class, 'getFolderTree'])->name('files.folder-tree');
+    Route::post('/buckets/{bucket}/move', [FilesController::class, 'move'])->name('files.move');
 });
 
 require __DIR__.'/auth.php';

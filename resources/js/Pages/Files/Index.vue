@@ -37,6 +37,12 @@ const showRenameModal = ref(false);
 const renamingItem = ref(null);
 const newItemName = ref('');
 const renaming = ref(false);
+const showMoveModal = ref(false);
+const movingItems = ref([]);
+const destinationPath = ref('');
+const moving = ref(false);
+const folderTree = ref([]);
+const loadingFolders = ref(false);
 
 const navigateToFolder = (path) => {
     router.get(route('files.index', { bucket: props.activeBucket.id, prefix: path }));
@@ -314,6 +320,59 @@ const renameItem = async () => {
     }
 };
 
+// Move functionality
+const showMove = () => {
+    if (selectedItems.value.size === 0) return;
+    
+    movingItems.value = Array.from(selectedItems.value);
+    destinationPath.value = '';
+    showMoveModal.value = true;
+    loadFolderTree();
+};
+
+const loadFolderTree = async () => {
+    loadingFolders.value = true;
+    try {
+        const response = await axios.get(route('files.folder-tree', { bucket: props.activeBucket.id }));
+        folderTree.value = response.data.folders;
+    } catch (error) {
+        console.error('Failed to load folder tree:', error);
+        alert('Failed to load folders: ' + (error.response?.data?.error || error.message));
+    } finally {
+        loadingFolders.value = false;
+    }
+};
+
+const moveItems = async () => {
+    if (moving.value || movingItems.value.length === 0) return;
+    
+    moving.value = true;
+    
+    try {
+        await axios.post(route('files.move', { bucket: props.activeBucket.id }), {
+            items: movingItems.value,
+            destination: destinationPath.value,
+            current_path: props.currentPath,
+        });
+        
+        // Close modal and reset
+        showMoveModal.value = false;
+        movingItems.value = [];
+        destinationPath.value = '';
+        selectedItems.value.clear();
+        
+        // Refresh the file list
+        router.reload({
+            only: ['files', 'folders'],
+        });
+    } catch (error) {
+        console.error('Failed to move items:', error);
+        alert('Failed to move items: ' + (error.response?.data?.error || error.message));
+    } finally {
+        moving.value = false;
+    }
+};
+
 // Checkbox selection handlers
 const toggleItemSelection = (item) => {
     if (selectedItems.value.has(item.path)) {
@@ -560,6 +619,17 @@ const uploadDroppedFiles = async (files) => {
                         <span v-if="uploading">Uploading... {{ uploadProgress }}%</span>
                         <span v-else>Upload</span>
                     </PrimaryButton>
+                    <SecondaryButton 
+                        v-if="selectedItems.size > 0" 
+                        @click="showMove"
+                        :disabled="moving"
+                        class="mr-2"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                        Move ({{ selectedItems.size }})
+                    </SecondaryButton>
                     <DangerButton 
                         v-if="selectedItems.size > 0" 
                         @click="deleteSelected"
@@ -1037,6 +1107,95 @@ const uploadDroppedFiles = async (files) => {
                             <SecondaryButton
                                 @click="showRenameModal = false; renamingItem = null; newItemName = ''"
                                 :disabled="renaming"
+                                class="mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
+                            >
+                                Cancel
+                            </SecondaryButton>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+        
+        <!-- Move Modal -->
+        <Teleport to="body">
+            <div v-if="showMoveModal" class="fixed inset-0 overflow-y-auto z-50">
+                <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="fixed inset-0 transition-opacity" aria-hidden="true" @click="showMoveModal = false">
+                        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                    </div>
+                    
+                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                    
+                    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="sm:flex sm:items-start">
+                                <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                    </svg>
+                                </div>
+                                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+                                    <h3 class="text-lg leading-6 font-medium text-gray-900">
+                                        Move {{ movingItems.length }} Item{{ movingItems.length > 1 ? 's' : '' }}
+                                    </h3>
+                                    <div class="mt-4">
+                                        <p class="text-sm text-gray-500 mb-3">Select destination folder:</p>
+                                        
+                                        <div v-if="loadingFolders" class="text-center py-4">
+                                            <svg class="animate-spin h-8 w-8 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                        
+                                        <div v-else class="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
+                                            <!-- Root folder option -->
+                                            <div 
+                                                @click="destinationPath = ''"
+                                                class="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center"
+                                                :class="{ 'bg-blue-50': destinationPath === '' }"
+                                            >
+                                                <svg class="h-5 w-5 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                                </svg>
+                                                <span class="text-sm">{{ activeBucket.name }} (root)</span>
+                                            </div>
+                                            
+                                            <!-- Folder tree -->
+                                            <div v-for="folder in folderTree" :key="folder.path">
+                                                <div 
+                                                    @click="destinationPath = folder.path"
+                                                    class="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center"
+                                                    :class="{ 'bg-blue-50': destinationPath === folder.path }"
+                                                    :style="{ paddingLeft: (folder.level * 20 + 12) + 'px' }"
+                                                >
+                                                    <svg class="h-5 w-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                                    </svg>
+                                                    <span class="text-sm">{{ folder.name }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <p v-if="destinationPath" class="mt-2 text-sm text-gray-600">
+                                            Moving to: <span class="font-medium">{{ destinationPath || 'Root' }}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                            <PrimaryButton
+                                @click="moveItems"
+                                :disabled="moving || loadingFolders"
+                                class="w-full sm:ml-3 sm:w-auto"
+                            >
+                                {{ moving ? 'Moving...' : 'Move' }}
+                            </PrimaryButton>
+                            <SecondaryButton
+                                @click="showMoveModal = false; movingItems = []; destinationPath = ''"
+                                :disabled="moving"
                                 class="mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
                             >
                                 Cancel

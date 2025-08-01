@@ -35,6 +35,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/buckets', [BucketController::class, 'store'])->name('buckets.store');
     Route::post('/buckets/{bucket}/test', [BucketController::class, 'test'])->name('buckets.test');
     Route::post('/buckets/{bucket}/activate', [BucketController::class, 'activate'])->name('buckets.activate');
+    Route::patch('/buckets/{bucket}/rename', [BucketController::class, 'rename'])->name('buckets.rename');
     Route::delete('/buckets/{bucket}', [BucketController::class, 'destroy'])->name('buckets.destroy');
     
     // File management routes

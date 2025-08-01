@@ -776,7 +776,7 @@ const uploadDroppedFiles = async (files) => {
                                                     @click.stop="showRename(folder)"
                                                     class="ml-2 p-1 text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-75"
                                                 >
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="showRenameModal && renamingItem === folder ? 2.5 : 2" @mouseover="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2.5')" @mouseleave="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2')">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                     </svg>
                                                 </button>
@@ -911,7 +911,7 @@ const uploadDroppedFiles = async (files) => {
                                                     @click.stop="showRename(file)"
                                                     class="ml-2 p-1 text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-75"
                                                 >
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="showRenameModal && renamingItem === file ? 2.5 : 2" @mouseover="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2.5')" @mouseleave="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2')">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                     </svg>
                                                 </button>

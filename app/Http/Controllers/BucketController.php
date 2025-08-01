@@ -128,6 +128,27 @@ class BucketController extends Controller
     }
 
     /**
+     * Rename a bucket
+     */
+    public function rename(Request $request, Bucket $bucket)
+    {
+        $this->authorize('update', $bucket);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        // Check if name is unique for this user (excluding current bucket)
+        if (auth()->user()->buckets()->where('name', $validated['name'])->where('id', '!=', $bucket->id)->exists()) {
+            return back()->withErrors(['name' => 'You already have a bucket with this name.']);
+        }
+
+        $bucket->update(['name' => $validated['name']]);
+
+        return back()->with('success', 'Bucket renamed successfully!');
+    }
+
+    /**
      * Delete a bucket configuration
      */
     public function destroy(Bucket $bucket)

@@ -120,10 +120,14 @@ class FilesController extends Controller
         try {
             $client = new S3Client($bucket->getClientConfig());
             
+            // Get the filename from the key
+            $filename = basename($key);
+            
             // Generate a pre-signed URL for download (valid for 5 minutes)
             $cmd = $client->getCommand('GetObject', [
                 'Bucket' => $bucket->bucket_name,
                 'Key' => $key,
+                'ResponseContentDisposition' => 'attachment; filename="' . $filename . '"',
             ]);
             
             $presignedUrl = $client->createPresignedRequest($cmd, '+5 minutes')->getUri();

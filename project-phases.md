@@ -66,10 +66,10 @@
 - [ ] Enhanced security and user isolation
 
 ### Core Feature Improvements
-- [ ] Add folder creation functionality
-- [ ] Implement file/folder renaming
+- [✅] Add folder creation functionality - **COMPLETE (August 1, 2025)**
+- [✅] Implement file/folder renaming - **COMPLETE (August 1, 2025)**
 - [ ] Add move/copy operations
-- [ ] Improve upload with drag-and-drop
+- [✅] Improve upload with drag-and-drop - **COMPLETE (Already implemented)**
 - [ ] Add basic file search within buckets
 - [✅] Bulk file operations (multi-select and delete)
 

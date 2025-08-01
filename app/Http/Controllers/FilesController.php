@@ -440,4 +440,168 @@ class FilesController extends Controller
             return response()->json(['error' => 'Failed to generate download URLs: ' . $e->getMessage()], 500);
         }
     }
+    
+    public function createFolder(Request $request, Bucket $bucket)
+    {
+        $this->authorize('view', $bucket);
+        
+        $request->validate([
+            'folder_name' => 'required|string|max:255',
+            'prefix' => 'nullable|string',
+        ]);
+        
+        $folderName = trim($request->get('folder_name'), '/');
+        $prefix = $request->get('prefix', '');
+        
+        // Construct the full folder key (ensure it ends with /)
+        $folderKey = $prefix . $folderName . '/';
+        
+        try {
+            $client = new S3Client($bucket->getClientConfig());
+            
+            // Create an empty object with the folder key to represent the folder
+            $client->putObject([
+                'Bucket' => $bucket->bucket_name,
+                'Key' => $folderKey,
+                'Body' => '',
+            ]);
+            
+            return response()->json(['success' => true, 'message' => 'Folder created successfully']);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to create folder: ' . $e->getMessage()], 500);
+        }
+    }
+    
+    public function rename(Request $request, Bucket $bucket)
+    {
+        $this->authorize('view', $bucket);
+        
+        $request->validate([
+            'old_path' => 'required|string',
+            'new_name' => 'required|string|max:255',
+            'is_folder' => 'required|boolean',
+        ]);
+        
+        $oldPath = $request->get('old_path');
+        $newName = trim($request->get('new_name'), '/');
+        $isFolder = $request->get('is_folder');
+        
+        // Get the parent directory
+        $parentPath = dirname($oldPath);
+        if ($parentPath === '.' || $parentPath === '/') {
+            $parentPath = '';
+        } else {
+            $parentPath .= '/';
+        }
+        
+        // Construct new path
+        $newPath = $parentPath . $newName;
+        if ($isFolder && !str_ends_with($newPath, '/')) {
+            $newPath .= '/';
+        }
+        
+        try {
+            $client = new S3Client($bucket->getClientConfig());
+            
+            if ($isFolder) {
+                // For folders, we need to copy all objects with the old prefix to the new prefix
+                $oldPrefix = $oldPath;
+                if (!str_ends_with($oldPrefix, '/')) {
+                    $oldPrefix .= '/';
+                }
+                
+                // List all objects with the old prefix
+                $objectsToRename = [];
+                $continuationToken = null;
+                
+                do {
+                    $params = [
+                        'Bucket' => $bucket->bucket_name,
+                        'Prefix' => $oldPrefix,
+                    ];
+                    
+                    if ($continuationToken) {
+                        $params['ContinuationToken'] = $continuationToken;
+                    }
+                    
+                    $result = $client->listObjectsV2($params);
+                    
+                    if (!empty($result['Contents'])) {
+                        foreach ($result['Contents'] as $object) {
+                            $objectsToRename[] = $object['Key'];
+                        }
+                    }
+                    
+                    $continuationToken = $result['NextContinuationToken'] ?? null;
+                } while ($continuationToken);
+                
+                // Copy each object to the new location
+                foreach ($objectsToRename as $oldKey) {
+                    $newKey = str_replace($oldPrefix, $newPath, $oldKey);
+                    
+                    // Copy object
+                    $client->copyObject([
+                        'Bucket' => $bucket->bucket_name,
+                        'CopySource' => $bucket->bucket_name . '/' . $oldKey,
+                        'Key' => $newKey,
+                    ]);
+                }
+                
+                // Delete old objects
+                if (!empty($objectsToRename)) {
+                    $deleteObjects = array_map(function($key) {
+                        return ['Key' => $key];
+                    }, $objectsToRename);
+                    
+                    $client->deleteObjects([
+                        'Bucket' => $bucket->bucket_name,
+                        'Delete' => [
+                            'Objects' => $deleteObjects,
+                        ],
+                    ]);
+                }
+                
+                // Also check if there's a folder marker for the old folder and rename it
+                if (!in_array($oldPath, $objectsToRename) && !in_array($oldPrefix, $objectsToRename)) {
+                    try {
+                        // Try to copy the folder marker if it exists
+                        $client->copyObject([
+                            'Bucket' => $bucket->bucket_name,
+                            'CopySource' => $bucket->bucket_name . '/' . $oldPath,
+                            'Key' => $newPath,
+                        ]);
+                        
+                        // Delete the old folder marker
+                        $client->deleteObject([
+                            'Bucket' => $bucket->bucket_name,
+                            'Key' => $oldPath,
+                        ]);
+                    } catch (\Exception $e) {
+                        // Folder marker might not exist, which is fine
+                    }
+                }
+                
+                return response()->json(['success' => true, 'message' => 'Folder renamed successfully']);
+                
+            } else {
+                // For files, simple copy and delete
+                $client->copyObject([
+                    'Bucket' => $bucket->bucket_name,
+                    'CopySource' => $bucket->bucket_name . '/' . $oldPath,
+                    'Key' => $newPath,
+                ]);
+                
+                $client->deleteObject([
+                    'Bucket' => $bucket->bucket_name,
+                    'Key' => $oldPath,
+                ]);
+                
+                return response()->json(['success' => true, 'message' => 'File renamed successfully']);
+            }
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to rename: ' . $e->getMessage()], 500);
+        }
+    }
 }

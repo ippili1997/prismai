@@ -40,6 +40,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/buckets/{bucket}/upload-url', [FilesController::class, 'getUploadUrl'])->name('files.upload-url');
     Route::post('/buckets/{bucket}/view-url', [FilesController::class, 'getViewUrl'])->name('files.view-url');
     Route::post('/buckets/{bucket}/folder-download-urls', [FilesController::class, 'getFolderDownloadUrls'])->name('files.folder-download-urls');
+    Route::post('/buckets/{bucket}/create-folder', [FilesController::class, 'createFolder'])->name('files.create-folder');
+    Route::post('/buckets/{bucket}/rename', [FilesController::class, 'rename'])->name('files.rename');
 });
 
 require __DIR__.'/auth.php';

@@ -205,6 +205,17 @@ All Phase 1 objectives have been successfully completed:
   - Hover tooltips on action buttons
   - Preview button for viewable files
   - Improved file navigation experience
+- ✅ **Folder Management**:
+  - Create new folders with modal interface
+  - Folder creation at any directory level
+- ✅ **File/Folder Renaming**:
+  - Rename files and folders in-place
+  - Modal interface for renaming
+  - Support for renaming folders with all contents
+- ✅ **Drag & Drop Upload**:
+  - Drag and drop files or entire folders
+  - Visual feedback during drag operations
+  - Maintains folder structure when dropping folders
 
 ## Next Phases (Future Development)
 

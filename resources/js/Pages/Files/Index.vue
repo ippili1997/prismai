@@ -30,6 +30,13 @@ const isDragging = ref(false);
 const dragCounter = ref(0);
 const downloadingFolder = ref(null);
 const downloadProgress = ref(0);
+const showCreateFolderModal = ref(false);
+const newFolderName = ref('');
+const creatingFolder = ref(false);
+const showRenameModal = ref(false);
+const renamingItem = ref(null);
+const newItemName = ref('');
+const renaming = ref(false);
 
 const navigateToFolder = (path) => {
     router.get(route('files.index', { bucket: props.activeBucket.id, prefix: path }));
@@ -240,6 +247,71 @@ const formatFileSize = (bytes) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const createFolder = async () => {
+    if (!newFolderName.value.trim()) return;
+    
+    creatingFolder.value = true;
+    
+    try {
+        await axios.post(route('files.create-folder', { bucket: props.activeBucket.id }), {
+            folder_name: newFolderName.value.trim(),
+            prefix: props.currentPath,
+        });
+        
+        // Close modal and reset
+        showCreateFolderModal.value = false;
+        newFolderName.value = '';
+        
+        // Refresh the file list
+        router.reload({
+            only: ['files', 'folders'],
+        });
+    } catch (error) {
+        console.error('Failed to create folder:', error);
+        alert('Failed to create folder: ' + (error.response?.data?.error || error.message));
+    } finally {
+        creatingFolder.value = false;
+    }
+};
+
+const showRename = (item) => {
+    renamingItem.value = item;
+    newItemName.value = item.name;
+    showRenameModal.value = true;
+};
+
+const renameItem = async () => {
+    if (!newItemName.value.trim() || newItemName.value === renamingItem.value.name) {
+        showRenameModal.value = false;
+        return;
+    }
+    
+    renaming.value = true;
+    
+    try {
+        await axios.post(route('files.rename', { bucket: props.activeBucket.id }), {
+            old_path: renamingItem.value.path,
+            new_name: newItemName.value.trim(),
+            is_folder: renamingItem.value.type === 'folder',
+        });
+        
+        // Close modal and reset
+        showRenameModal.value = false;
+        renamingItem.value = null;
+        newItemName.value = '';
+        
+        // Refresh the file list
+        router.reload({
+            only: ['files', 'folders'],
+        });
+    } catch (error) {
+        console.error('Failed to rename:', error);
+        alert('Failed to rename: ' + (error.response?.data?.error || error.message));
+    } finally {
+        renaming.value = false;
+    }
 };
 
 // Checkbox selection handlers
@@ -475,6 +547,12 @@ const uploadDroppedFiles = async (files) => {
                     </p>
                 </div>
                 <div class="flex items-center space-x-2">
+                    <SecondaryButton @click="showCreateFolderModal = true">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                        </svg>
+                        New Folder
+                    </SecondaryButton>
                     <PrimaryButton @click="triggerFileUpload" :disabled="uploading">
                         <svg v-if="!uploading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -496,28 +574,29 @@ const uploadDroppedFiles = async (files) => {
             </div>
         </template>
 
-        <div class="py-12">
+        <div 
+            class="py-12 min-h-screen"
+            @dragenter.prevent="handleDragEnter"
+            @dragleave.prevent="handleDragLeave"
+            @dragover.prevent="handleDragOver"
+            @drop.prevent="handleDrop"
+        >
+            <!-- Drag overlay -->
+            <div
+                v-if="isDragging"
+                class="fixed inset-0 z-50 bg-indigo-50 bg-opacity-90 flex items-center justify-center pointer-events-none"
+            >
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="mt-2 text-lg font-medium text-indigo-900">Drop files or folders here</p>
+                    <p class="text-sm text-indigo-700">Files will be uploaded to the current folder</p>
+                </div>
+            </div>
+            
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div 
-                    class="bg-white overflow-hidden shadow-sm sm:rounded-lg relative"
-                    @dragenter.prevent="handleDragEnter"
-                    @dragleave.prevent="handleDragLeave"
-                    @dragover.prevent="handleDragOver"
-                    @drop.prevent="handleDrop"
-                >
-                    <!-- Drag overlay -->
-                    <div
-                        v-if="isDragging"
-                        class="absolute inset-0 z-50 bg-indigo-50 bg-opacity-90 flex items-center justify-center pointer-events-none"
-                    >
-                        <div class="text-center">
-                            <svg class="mx-auto h-12 w-12 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            <p class="mt-2 text-lg font-medium text-indigo-900">Drop files or folders here</p>
-                            <p class="text-sm text-indigo-700">Files will be uploaded to the current folder</p>
-                        </div>
-                    </div>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg relative">
                     
                     <!-- Breadcrumb -->
                     <div class="p-4 border-b border-gray-200">
@@ -616,12 +695,22 @@ const uploadDroppedFiles = async (files) => {
                                             />
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            <button @click="navigateToFolder(folder.path)" class="flex items-center group hover:text-indigo-600">
-                                                <svg class="h-5 w-5 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                                </svg>
-                                                <span class="group-hover:underline">{{ folder.name }}</span>
-                                            </button>
+                                            <div class="flex items-center group">
+                                                <button @click="navigateToFolder(folder.path)" class="flex items-center hover:text-indigo-600">
+                                                    <svg class="h-5 w-5 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                                    </svg>
+                                                    <span class="hover:underline">{{ folder.name }}</span>
+                                                </button>
+                                                <button
+                                                    @click.stop="showRename(folder)"
+                                                    class="ml-2 p-1 text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-75"
+                                                >
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="showRenameModal && renamingItem === folder ? 2.5 : 2" @mouseover="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2.5')" @mouseleave="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2')">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
@@ -691,62 +780,72 @@ const uploadDroppedFiles = async (files) => {
                                             />
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            <button 
-                                                @click="isFilePreviewable(file.name) ? viewFile(file) : null" 
-                                                class="flex items-center group"
-                                                :class="isFilePreviewable(file.name) ? 'hover:text-indigo-600 cursor-pointer' : 'cursor-default'"
-                                            >
-                                                <!-- File type icons with unique shapes -->
-                                                <template v-if="getFileIcon(file.name) === 'image'">
-                                                    <svg class="h-5 w-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                                            <div class="flex items-center group">
+                                                <button 
+                                                    @click="isFilePreviewable(file.name) ? viewFile(file) : null" 
+                                                    class="flex items-center"
+                                                    :class="isFilePreviewable(file.name) ? 'hover:text-indigo-600 cursor-pointer' : 'cursor-default'"
+                                                >
+                                                    <!-- File type icons with unique shapes -->
+                                                    <template v-if="getFileIcon(file.name) === 'image'">
+                                                        <svg class="h-5 w-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'video'">
+                                                        <svg class="h-5 w-5 text-purple-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'pdf'">
+                                                        <svg class="h-5 w-5 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17h6M9 13h6M9 9h4" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'excel'">
+                                                        <svg class="h-5 w-5 text-green-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'word'">
+                                                        <svg class="h-5 w-5 text-blue-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 4a1 1 0 011 1v1h2V7a1 1 0 112 0v6a1 1 0 11-2 0v-2H9v2a1 1 0 11-2 0V7a1 1 0 011-1z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'archive'">
+                                                        <svg class="h-5 w-5 text-yellow-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                                            <path fill-rule="evenodd" d="M2 12a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm6 1a1 1 0 100 2h4a1 1 0 100-2H8z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'code'">
+                                                        <svg class="h-5 w-5 text-indigo-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else-if="getFileIcon(file.name) === 'text'">
+                                                        <svg class="h-5 w-5 text-gray-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4z" clip-rule="evenodd" />
+                                                            <path d="M8 7h4v2H8V7zm0 4h4v2H8v-2z" />
+                                                        </svg>
+                                                    </template>
+                                                    <template v-else>
+                                                        <svg class="h-5 w-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                        </svg>
+                                                    </template>
+                                                    <span :class="isFilePreviewable(file.name) ? 'hover:underline' : ''">{{ file.name }}</span>
+                                                </button>
+                                                <button
+                                                    @click.stop="showRename(file)"
+                                                    class="ml-2 p-1 text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-75"
+                                                >
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="showRenameModal && renamingItem === file ? 2.5 : 2" @mouseover="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2.5')" @mouseleave="$event.currentTarget.querySelector('path').setAttribute('stroke-width', '2')">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                     </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'video'">
-                                                    <svg class="h-5 w-5 text-purple-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'pdf'">
-                                                    <svg class="h-5 w-5 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17h6M9 13h6M9 9h4" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'excel'">
-                                                    <svg class="h-5 w-5 text-green-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'word'">
-                                                    <svg class="h-5 w-5 text-blue-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 4a1 1 0 011 1v1h2V7a1 1 0 112 0v6a1 1 0 11-2 0v-2H9v2a1 1 0 11-2 0V7a1 1 0 011-1z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'archive'">
-                                                    <svg class="h-5 w-5 text-yellow-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                                                        <path fill-rule="evenodd" d="M2 12a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm6 1a1 1 0 100 2h4a1 1 0 100-2H8z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'code'">
-                                                    <svg class="h-5 w-5 text-indigo-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else-if="getFileIcon(file.name) === 'text'">
-                                                    <svg class="h-5 w-5 text-gray-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4z" clip-rule="evenodd" />
-                                                        <path d="M8 7h4v2H8V7zm0 4h4v2H8v-2z" />
-                                                    </svg>
-                                                </template>
-                                                <template v-else>
-                                                    <svg class="h-5 w-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                    </svg>
-                                                </template>
-                                                <span :class="isFilePreviewable(file.name) ? 'group-hover:underline' : ''">{{ file.name }}</span>
-                                            </button>
+                                                </button>
+                                            </div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ formatFileSize(file.size) }}
@@ -835,5 +934,117 @@ const uploadDroppedFiles = async (files) => {
             @navigate-prev="navigateToPrevFile"
             @navigate-next="navigateToNextFile"
         />
+        
+        <!-- Create Folder Modal -->
+        <Teleport to="body">
+            <div v-if="showCreateFolderModal" class="fixed inset-0 overflow-y-auto z-50">
+                <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="fixed inset-0 transition-opacity" aria-hidden="true" @click="showCreateFolderModal = false">
+                        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                    </div>
+                    
+                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                    
+                    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="sm:flex sm:items-start">
+                                <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                                    </svg>
+                                </div>
+                                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+                                    <h3 class="text-lg leading-6 font-medium text-gray-900">
+                                        Create New Folder
+                                    </h3>
+                                    <div class="mt-4">
+                                        <input
+                                            v-model="newFolderName"
+                                            @keyup.enter="createFolder"
+                                            type="text"
+                                            class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                            placeholder="Folder name"
+                                            :disabled="creatingFolder"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                            <PrimaryButton
+                                @click="createFolder"
+                                :disabled="!newFolderName.trim() || creatingFolder"
+                                class="w-full sm:ml-3 sm:w-auto"
+                            >
+                                {{ creatingFolder ? 'Creating...' : 'Create' }}
+                            </PrimaryButton>
+                            <SecondaryButton
+                                @click="showCreateFolderModal = false; newFolderName = ''"
+                                :disabled="creatingFolder"
+                                class="mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
+                            >
+                                Cancel
+                            </SecondaryButton>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+        
+        <!-- Rename Modal -->
+        <Teleport to="body">
+            <div v-if="showRenameModal" class="fixed inset-0 overflow-y-auto z-50">
+                <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="fixed inset-0 transition-opacity" aria-hidden="true" @click="showRenameModal = false">
+                        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                    </div>
+                    
+                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                    
+                    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="sm:flex sm:items-start">
+                                <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </div>
+                                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+                                    <h3 class="text-lg leading-6 font-medium text-gray-900">
+                                        Rename {{ renamingItem?.type === 'folder' ? 'Folder' : 'File' }}
+                                    </h3>
+                                    <div class="mt-4">
+                                        <input
+                                            v-model="newItemName"
+                                            @keyup.enter="renameItem"
+                                            type="text"
+                                            class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                            :placeholder="renamingItem?.name"
+                                            :disabled="renaming"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                            <PrimaryButton
+                                @click="renameItem"
+                                :disabled="!newItemName.trim() || newItemName === renamingItem?.name || renaming"
+                                class="w-full sm:ml-3 sm:w-auto"
+                            >
+                                {{ renaming ? 'Renaming...' : 'Rename' }}
+                            </PrimaryButton>
+                            <SecondaryButton
+                                @click="showRenameModal = false; renamingItem = null; newItemName = ''"
+                                :disabled="renaming"
+                                class="mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
+                            >
+                                Cancel
+                            </SecondaryButton>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </AuthenticatedLayout>
 </template>

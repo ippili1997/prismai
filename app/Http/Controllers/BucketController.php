@@ -35,9 +35,11 @@ class BucketController extends Controller
     /**
      * Show form to create a new bucket
      */
-    public function create()
+    public function create(Request $request)
     {
-        return Inertia::render('Buckets/Create');
+        return Inertia::render('Buckets/Create', [
+            'provider' => $request->get('provider', 'r2')
+        ]);
     }
 
     /**

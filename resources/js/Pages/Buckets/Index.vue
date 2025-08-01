@@ -68,13 +68,51 @@ const deleteBucket = (bucketId: number) => {
 
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <!-- Provider Selection Cards -->
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <Link :href="route('buckets.create', { provider: 's3' })" class="block">
+                        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-orange-500">
+                            <div class="p-8 text-center">
+                                <div class="w-16 h-16 mx-auto mb-4 bg-orange-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-10 h-10 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                </div>
+                                <h3 class="text-lg font-semibold text-gray-900 mb-2">Amazon S3</h3>
+                                <p class="text-sm text-gray-600">Connect your AWS S3 buckets for scalable cloud storage</p>
+                                <div class="mt-4">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                                        Add S3 Bucket →
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
+
+                    <Link :href="route('buckets.create', { provider: 'r2' })" class="block">
+                        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-blue-500">
+                            <div class="p-8 text-center">
+                                <div class="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-10 h-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                    </svg>
+                                </div>
+                                <h3 class="text-lg font-semibold text-gray-900 mb-2">Cloudflare R2</h3>
+                                <p class="text-sm text-gray-600">Connect your R2 buckets for S3-compatible storage at the edge</p>
+                                <div class="mt-4">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                                        Add R2 Bucket →
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
+                </div>
+
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">
-                        <div class="flex justify-between items-center mb-6">
+                        <div class="mb-6">
                             <h3 class="text-lg font-medium">Your Connected Buckets</h3>
-                            <Link :href="route('buckets.create')">
-                                <PrimaryButton>Add New Bucket</PrimaryButton>
-                            </Link>
                         </div>
 
                         <div v-if="buckets.length === 0" class="text-center py-12">
@@ -82,12 +120,7 @@ const deleteBucket = (bucketId: number) => {
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
                             <h3 class="mt-2 text-sm font-medium text-gray-900">No buckets connected</h3>
-                            <p class="mt-1 text-sm text-gray-500">Get started by connecting your first storage bucket.</p>
-                            <div class="mt-6">
-                                <Link :href="route('buckets.create')">
-                                    <PrimaryButton>Add New Bucket</PrimaryButton>
-                                </Link>
-                            </div>
+                            <p class="mt-1 text-sm text-gray-500">Get started by connecting your first storage bucket using the options above.</p>
                         </div>
 
                         <div v-else class="overflow-x-auto">

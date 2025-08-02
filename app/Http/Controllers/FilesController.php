@@ -22,16 +22,24 @@ class FilesController extends Controller
         $prefix = $request->get('prefix', '');
         $files = [];
         $folders = [];
+        $nextToken = $request->get('continuation_token', null);
+        $perPage = 100; // Simple pagination limit
         
         try {
             $client = new S3Client($bucket->getClientConfig());
             
-            $result = $client->listObjectsV2([
+            $params = [
                 'Bucket' => $bucket->bucket_name,
                 'Prefix' => $prefix,
                 'Delimiter' => '/',
-                'MaxKeys' => 1000,
-            ]);
+                'MaxKeys' => $perPage,
+            ];
+            
+            if ($nextToken) {
+                $params['ContinuationToken'] = $nextToken;
+            }
+            
+            $result = $client->listObjectsV2($params);
             
             // Process folders (common prefixes)
             if (isset($result['CommonPrefixes'])) {
@@ -105,6 +113,8 @@ class FilesController extends Controller
             'activeBucket' => $bucket->only(['id', 'name', 'provider']),
             'currentPath' => $prefix,
             'breadcrumb' => $breadcrumb,
+            'hasMore' => $result['IsTruncated'] ?? false,
+            'nextToken' => $result['NextContinuationToken'] ?? null,
         ]);
     }
     

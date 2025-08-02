@@ -15,6 +15,8 @@ const props = defineProps({
     activeBucket: Object,
     currentPath: String,
     breadcrumb: Array,
+    hasMore: Boolean,
+    nextToken: String,
 });
 
 const fileInput = ref(null);
@@ -43,17 +45,28 @@ const destinationPath = ref('');
 const moving = ref(false);
 const folderTree = ref([]);
 const loadingFolders = ref(false);
+const deletingItems = ref(new Set());
+const navigating = ref(false);
+const loadingMore = ref(false);
+const allFiles = ref([...props.files]);
+const allFolders = ref([...props.folders]);
 
 const navigateToFolder = (path) => {
-    router.get(route('files.index', { bucket: props.activeBucket.id, prefix: path }));
+    navigating.value = true;
+    router.get(route('files.index', { bucket: props.activeBucket.id, prefix: path }), {}, {
+        onFinish: () => navigating.value = false
+    });
 };
 
 const navigateUp = () => {
     if (props.currentPath) {
+        navigating.value = true;
         const parts = props.currentPath.split('/').filter(p => p);
         parts.pop();
         const newPath = parts.length > 0 ? parts.join('/') + '/' : '';
-        router.get(route('files.index', { bucket: props.activeBucket.id, prefix: newPath }));
+        router.get(route('files.index', { bucket: props.activeBucket.id, prefix: newPath }), {}, {
+            onFinish: () => navigating.value = false
+        });
     }
 };
 
@@ -171,24 +184,28 @@ const navigateToNextFile = () => {
 
 const deleteFile = (file) => {
     if (confirm(`Are you sure you want to delete ${file.name}?`)) {
+        deletingItems.value.add(file.path);
         router.delete(route('files.destroy', {
             bucket: props.activeBucket.id,
             key: file.path
         }), {
             preserveState: true,
             preserveScroll: true,
+            onFinish: () => deletingItems.value.delete(file.path)
         });
     }
 };
 
 const deleteFolder = (folder) => {
     if (confirm(`Are you sure you want to delete the folder "${folder.name}" and all its contents?`)) {
+        deletingItems.value.add(folder.path);
         router.delete(route('files.destroy', {
             bucket: props.activeBucket.id,
             key: folder.path
         }), {
             preserveState: true,
             preserveScroll: true,
+            onFinish: () => deletingItems.value.delete(folder.path)
         });
     }
 };
@@ -589,6 +606,31 @@ const uploadDroppedFiles = async (files) => {
         alert(`Failed to upload: ${failedFiles.join(', ')}`);
     }
 };
+
+const loadMore = async () => {
+    if (!currentNextToken.value || loadingMore.value) return;
+    
+    loadingMore.value = true;
+    
+    try {
+        const response = await axios.get(route('files.index', { 
+            bucket: props.activeBucket.id, 
+            prefix: props.currentPath,
+            continuation_token: currentNextToken.value 
+        }));
+        
+        if (response.data.props) {
+            allFiles.value.push(...response.data.props.files);
+            allFolders.value.push(...response.data.props.folders);
+            currentNextToken.value = response.data.props.nextToken;
+            hasMoreItems.value = response.data.props.hasMore;
+        }
+    } catch (error) {
+        console.error('Failed to load more items:', error);
+    } finally {
+        loadingMore.value = false;
+    }
+};
 </script>
 
 <template>
@@ -667,6 +709,16 @@ const uploadDroppedFiles = async (files) => {
             
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg relative">
+                    <!-- Loading overlay -->
+                    <div v-if="navigating" class="absolute inset-0 bg-white bg-opacity-75 z-10 flex items-center justify-center">
+                        <div class="flex items-center">
+                            <svg class="animate-spin h-8 w-8 text-indigo-600 mr-3" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="text-gray-600">Loading...</span>
+                        </div>
+                    </div>
                     
                     <!-- Breadcrumb -->
                     <div class="p-4 border-b border-gray-200">
@@ -691,7 +743,7 @@ const uploadDroppedFiles = async (files) => {
 
                     <!-- Files Table -->
                     <div class="p-6">
-                        <div v-if="files.length === 0 && folders.length === 0" class="text-center py-12">
+                        <div v-if="allFiles.length === 0 && allFolders.length === 0" class="text-center py-12">
                             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                             </svg>
@@ -754,7 +806,7 @@ const uploadDroppedFiles = async (files) => {
                                     </tr>
 
                                     <!-- Folders -->
-                                    <tr v-for="folder in folders" :key="folder.path" class="hover:bg-gray-50">
+                                    <tr v-for="folder in allFolders" :key="folder.path" class="hover:bg-gray-50">
                                         <td class="px-6 py-4">
                                             <input
                                                 type="checkbox"
@@ -766,8 +818,8 @@ const uploadDroppedFiles = async (files) => {
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             <div class="flex items-center group">
-                                                <button @click="navigateToFolder(folder.path)" class="flex items-center hover:text-indigo-600">
-                                                    <svg class="h-5 w-5 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <button @click="navigateToFolder(folder.path)" :disabled="navigating" class="flex items-center" :class="navigating ? 'text-gray-400 cursor-not-allowed' : 'hover:text-indigo-600'">
+                                                    <svg class="h-5 w-5 mr-3" :class="navigating ? 'text-gray-400' : 'text-blue-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                                                     </svg>
                                                     <span class="hover:underline">{{ folder.name }}</span>
@@ -825,7 +877,9 @@ const uploadDroppedFiles = async (files) => {
                                                 <div class="relative group">
                                                     <button
                                                         @click="deleteFolder(folder)"
-                                                        class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                                        :disabled="deletingItems.has(folder.path)"
+                                                        class="p-1.5 rounded-md transition-colors"
+                                                        :class="deletingItems.has(folder.path) ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700 hover:bg-red-50'"
                                                     >
                                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -840,7 +894,7 @@ const uploadDroppedFiles = async (files) => {
                                     </tr>
 
                                     <!-- Files -->
-                                    <tr v-for="file in files" :key="file.path" class="hover:bg-gray-50">
+                                    <tr v-for="file in allFiles" :key="file.path" class="hover:bg-gray-50">
                                         <td class="px-6 py-4">
                                             <input
                                                 type="checkbox"
@@ -966,7 +1020,9 @@ const uploadDroppedFiles = async (files) => {
                                                 <div class="relative group">
                                                     <button
                                                         @click="deleteFile(file)"
-                                                        class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                                        :disabled="deletingItems.has(file.path)"
+                                                        class="p-1.5 rounded-md transition-colors"
+                                                        :class="deletingItems.has(file.path) ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700 hover:bg-red-50'"
                                                     >
                                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -981,6 +1037,22 @@ const uploadDroppedFiles = async (files) => {
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        
+                        <!-- Load More Button -->
+                        <div v-if="hasMoreItems" class="p-4 text-center border-t">
+                            <button 
+                                @click="loadMore" 
+                                :disabled="loadingMore"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <svg v-if="loadingMore" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span v-if="loadingMore">Loading...</span>
+                                <span v-else>Load More</span>
+                            </button>
                         </div>
                     </div>
                 </div>

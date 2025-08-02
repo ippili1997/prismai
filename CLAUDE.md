@@ -327,6 +327,11 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 - ✅ Download button in preview modal
 - ✅ Smart file type detection for preview support
 - ✅ Text file content fetching for small files (<1MB)
+- ✅ **Mobile-Optimized Bucket List** (August 2, 2025):
+  - Arrow indicator (→) on mobile for clickable buckets
+  - Smaller, more compact "Add Bucket" cards
+  - Rename icon always visible on mobile (no hover state)
+  - Improved touch-friendly UI elements
 
 ## Multi-Agent Development Guidelines
 
@@ -400,6 +405,39 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
    - Build files are git-ignored
    - Railway handles production builds
    - Local builds for testing only
+
+## Performance Optimization Needs
+
+### Current Performance Issues (Identified August 2, 2025)
+- **Page Load Latency**: Buckets and Files pages taking ~2 seconds per request
+- **Potential Causes**:
+  - S3/R2 API calls on every page load
+  - Lack of caching for bucket metadata
+  - No background jobs for connection status checks
+  - Synchronous credential decryption on each request
+
+### Proposed Optimizations (Phase 2 Priority)
+1. **Implement Caching Layer**:
+   - Cache bucket metadata (Redis/Database cache)
+   - Cache file listings with TTL
+   - Pre-fetch commonly accessed directories
+
+2. **Async Operations**:
+   - Move connection status checks to background jobs
+   - Implement webhook/queue system for updates
+   - Use Laravel Horizon for job management
+
+3. **Frontend Optimizations**:
+   - Implement optimistic UI updates
+   - Add skeleton loaders during data fetching
+   - Prefetch data on hover (buckets list)
+   - Implement virtual scrolling for large file lists
+
+4. **API Optimizations**:
+   - Batch API requests where possible
+   - Implement request debouncing
+   - Add response compression
+   - Use HTTP/2 Server Push for critical resources
 
 ## Development Guidelines
 - **AI Interaction Guidelines**:

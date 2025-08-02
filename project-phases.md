@@ -43,6 +43,16 @@
 - [✅] Optimize file listing for large directories (pagination) - **COMPLETE (August 2, 2025)**
 - [✅] Add loading states for all operations - **COMPLETE (August 2, 2025)**
 
+### Performance Optimization (HIGH PRIORITY)
+- [ ] **Address 2-second page load latency on Buckets and Files pages**
+- [ ] Implement caching layer for bucket metadata
+- [ ] Cache file listings with appropriate TTL
+- [ ] Move connection checks to background jobs
+- [ ] Add Redis/cache layer for frequently accessed data
+- [ ] Implement optimistic UI updates
+- [ ] Add skeleton loaders during data fetching
+- [ ] Consider lazy-loading and prefetching strategies
+
 ### Database Migration (Required for multi-user)
 - [✅] Migrate from SQLite to PostgreSQL/MySQL - **Migrated to Supabase**
 - [✅] Set up cloud database (Supabase, Neon.tech, or PlanetScale) - **Supabase configured**
@@ -205,6 +215,11 @@
 - ✅ Removed build files from Git tracking
 - ✅ Resolved merge conflicts with main branch
 - ✅ Updated documentation
+- ✅ Mobile UI optimizations for bucket list:
+  - Added arrow indicator (→) for clickable buckets on mobile
+  - Made "Add Bucket" cards more compact
+  - Fixed rename icon visibility on touch devices
+  - Improved touch-friendly interactions
 
 ### August 1, 2025
 - ✅ File preview system

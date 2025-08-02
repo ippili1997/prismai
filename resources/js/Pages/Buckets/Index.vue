@@ -93,15 +93,15 @@ const renameBucket = () => {
             </h2>
         </template>
 
-        <div class="py-12">
+        <div class="py-6">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <!-- Provider Selection Cards -->
-                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                <div class="grid sm:grid-cols-2 gap-4 sm:gap-6 mb-6 px-4 sm:px-0">
                     <Link :href="route('buckets.create', { provider: 's3' })" class="block">
-                        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-green-500">
-                            <div class="p-8 text-center">
-                                <div class="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-                                    <svg class="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div class="bg-white overflow-hidden shadow-sm rounded-lg hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-green-500">
+                            <div class="p-6 text-center">
+                                <div class="w-12 h-12 mx-auto mb-3 bg-green-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7c0 2.21-3.582 4-8 4S4 9.21 4 7s3.582-4 8-4 8 1.79 8 4z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
@@ -109,7 +109,7 @@ const renameBucket = () => {
                                 </div>
                                 <h3 class="text-lg font-semibold text-gray-900 mb-2">Amazon S3</h3>
                                 <p class="text-sm text-gray-600">Connect your AWS S3 buckets for scalable cloud storage</p>
-                                <div class="mt-4">
+                                <div class="mt-3">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                                         Add →
                                     </span>
@@ -119,16 +119,16 @@ const renameBucket = () => {
                     </Link>
 
                     <Link :href="route('buckets.create', { provider: 'r2' })" class="block">
-                        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-orange-500">
-                            <div class="p-8 text-center">
-                                <div class="w-16 h-16 mx-auto mb-4 bg-orange-100 rounded-full flex items-center justify-center">
-                                    <svg class="w-10 h-10 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div class="bg-white overflow-hidden shadow-sm rounded-lg hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-orange-500">
+                            <div class="p-6 text-center">
+                                <div class="w-12 h-12 mx-auto mb-3 bg-orange-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                                     </svg>
                                 </div>
                                 <h3 class="text-lg font-semibold text-gray-900 mb-2">Cloudflare R2</h3>
                                 <p class="text-sm text-gray-600">Connect your R2 buckets for S3-compatible storage at the edge</p>
-                                <div class="mt-4">
+                                <div class="mt-3">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
                                         Add →
                                     </span>
@@ -138,8 +138,8 @@ const renameBucket = () => {
                     </Link>
                 </div>
 
-                <div class="bg-white shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900 overflow-visible">
+                <div class="bg-white shadow-sm rounded-lg mx-4 sm:mx-0">
+                    <div class="p-4 sm:p-6 text-gray-900 overflow-visible">
                         <div class="mb-6">
                             <h3 class="text-lg font-medium">Your Connected Buckets</h3>
                         </div>
@@ -152,7 +152,7 @@ const renameBucket = () => {
                             <p class="mt-1 text-sm text-gray-500">Get started by connecting your first storage bucket using the options above.</p>
                         </div>
 
-                        <div v-else class="space-y-3">
+                        <div v-else class="space-y-3 px-0">
                             <div v-for="bucket in buckets" :key="bucket.id" 
                                 class="group relative border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200 cursor-pointer border-l-4"
                                 :class="{
@@ -160,18 +160,22 @@ const renameBucket = () => {
                                     '!border-l-orange-500': bucket.provider === 'r2'
                                 }"
                                 @click="bucket.is_active ? $inertia.visit(route('files.index', { bucket: bucket.id })) : null">
-                                <!-- Hover overlay -->
+                                <!-- Hover overlay - Desktop only -->
                                 <div v-if="bucket.is_active" 
-                                    class="absolute inset-0 bg-gray-900 bg-opacity-0 group-hover:bg-opacity-5 transition-all duration-300 flex items-center justify-center">
+                                    class="hidden sm:flex absolute inset-0 bg-gray-900 bg-opacity-0 group-hover:bg-opacity-5 transition-all duration-300 items-center justify-center">
                                     <div class="text-gray-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-95 group-hover:scale-100">
                                         Click to browse files
                                     </div>
                                 </div>
-                                <div class="relative flex items-center justify-between">
+                                <!-- Mobile arrow indicator for connected buckets -->
+                                <svg v-if="bucket.is_active" class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m0 0l-6-6m6 6l-6 6" />
+                                </svg>
+                                <div class="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
                                     <div class="flex-1">
-                                        <div class="flex items-center gap-3">
+                                        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                                             <div class="flex items-center gap-2 group/title">
-                                                <span class="relative flex h-2 w-2">
+                                                <span class="relative flex h-2 w-2 flex-shrink-0">
                                                     <span v-if="bucket.is_active" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                                     <span class="relative inline-flex rounded-full h-2 w-2"
                                                         :class="bucket.is_active ? 'bg-green-500' : 'bg-red-500'">
@@ -182,7 +186,7 @@ const renameBucket = () => {
                                                 </h3>
                                                 <button
                                                     @click.stop="showRenameBucket(bucket)"
-                                                    class="p-1 text-gray-400 hover:text-gray-700 opacity-0 group-hover/title:opacity-100 transition-opacity duration-75"
+                                                    class="p-1 text-gray-400 hover:text-gray-700 opacity-100 sm:opacity-0 sm:group-hover/title:opacity-100 transition-opacity duration-75"
                                                 >
                                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -197,16 +201,16 @@ const renameBucket = () => {
                                                 {{ bucket.provider.toUpperCase() }}
                                             </span>
                                         </div>
-                                        <div class="mt-1.5 ml-4 space-y-0.5">
+                                        <div class="mt-1.5 ml-0 sm:ml-4 space-y-0.5">
                                             <div class="text-sm text-gray-600">
-                                                <span class="font-mono">{{ bucket.bucket_name }}</span>
+                                                <span class="font-mono break-all">{{ bucket.bucket_name }}</span>
                                             </div>
                                             <div class="text-xs text-gray-500">
                                                 Last connected: {{ bucket.last_connected_at || 'Never' }}
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2 self-start sm:self-center">
                                         <button
                                             v-if="bucket.is_active"
                                             @click.stop="activateBucket(bucket.id)"

@@ -1,4 +1,5 @@
 // Mock Ziggy for development environments without vendor access
+// Updated: 2025-08-03 - Added route().current() method
 export const ZiggyVue = {
     install(app) {
         app.config.globalProperties.route = (name, params = {}, absolute = true) => {

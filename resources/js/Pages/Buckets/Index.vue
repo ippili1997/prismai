@@ -19,6 +19,7 @@ interface Bucket {
 
 const props = defineProps<{
     buckets: Bucket[];
+    error?: string;
 }>();
 
 const deletingBucket = ref<number | null>(null);
@@ -95,6 +96,12 @@ const renameBucket = () => {
 
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <!-- Error Alert -->
+                <div v-if="error" class="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+                    <strong class="font-bold">Error: </strong>
+                    <span class="block sm:inline">{{ error }}</span>
+                </div>
+                
                 <!-- Provider Selection Cards -->
                 <div class="grid md:grid-cols-2 gap-6 mb-8">
                     <Link :href="route('buckets.create', { provider: 's3' })" class="block">

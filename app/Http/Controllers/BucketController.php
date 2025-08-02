@@ -15,21 +15,40 @@ class BucketController extends Controller
      */
     public function index()
     {
-        $buckets = auth()->user()->buckets()->latest()->get();
-        
-        return Inertia::render('Buckets/Index', [
-            'buckets' => $buckets->map(function ($bucket) {
-                return [
-                    'id' => $bucket->id,
-                    'name' => $bucket->name,
-                    'provider' => $bucket->provider,
-                    'bucket_name' => $bucket->bucket_name,
-                    'is_active' => $bucket->is_active,
-                    'last_connected_at' => $bucket->last_connected_at?->diffForHumans(),
-                    'created_at' => $bucket->created_at->format('M d, Y'),
-                ];
-            }),
-        ]);
+        try {
+            \Log::info('BucketController@index - User ID: ' . auth()->id());
+            
+            $buckets = auth()->user()->buckets()->latest()->get();
+            
+            \Log::info('BucketController@index - Buckets count: ' . $buckets->count());
+            
+            return Inertia::render('Buckets/Index', [
+                'buckets' => $buckets->map(function ($bucket) {
+                    try {
+                        return [
+                            'id' => $bucket->id,
+                            'name' => $bucket->name,
+                            'provider' => $bucket->provider,
+                            'bucket_name' => $bucket->bucket_name,
+                            'is_active' => $bucket->is_active,
+                            'last_connected_at' => $bucket->last_connected_at?->diffForHumans(),
+                            'created_at' => $bucket->created_at->format('M d, Y'),
+                        ];
+                    } catch (\Exception $e) {
+                        \Log::error('Error mapping bucket ID ' . $bucket->id . ': ' . $e->getMessage());
+                        throw $e;
+                    }
+                }),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('BucketController@index error: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
+            
+            // Return empty buckets array with error message
+            return Inertia::render('Buckets/Index', [
+                'buckets' => [],
+                'error' => 'Failed to load buckets. Please check the logs.',
+            ]);
+        }
     }
 
     /**

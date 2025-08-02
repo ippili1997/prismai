@@ -16,7 +16,7 @@ Prism AI is a privacy-first, self-hosted cloud storage platform where users conn
 **Backend**: Laravel 12 with AWS SDK
 **Database**: Migrated to Supabase (PostgreSQL)
 **Production**: Deployed on Railway.app
-**Last Updated**: August 1, 2025
+**Last Updated**: August 2, 2025
 
 ## Phase 1: Core Storage Platform (COMPLETE)
 
@@ -188,7 +188,7 @@ All Phase 1 objectives have been successfully completed:
 - ✅ **Better UX**: No need to constantly switch between buckets
 - ✅ **Bucket-Specific Operations**: All file operations now use the correct bucket context
 
-### Phase 2 & 3 Features Implemented (August 1, 2025):
+### Phase 2 & 3 Features Implemented (August 1-2, 2025):
 - ✅ **File Preview System**: 
   - Image viewer with zoom/pan
   - PDF viewer
@@ -205,6 +205,16 @@ All Phase 1 objectives have been successfully completed:
   - Hover tooltips on action buttons
   - Preview button for viewable files
   - Improved file navigation experience
+  - ✅ **Loading States** (August 2, 2025):
+    - Navigation loading overlay
+    - Individual operation indicators
+    - Disabled states during operations
+    - Smooth transitions between states
+- ✅ **Pagination** (August 2, 2025):
+  - 100 items per page
+  - Load More functionality
+  - Continuation token support
+  - Seamless infinite scroll experience
 - ✅ **Folder Management**:
   - Create new folders with modal interface
   - Folder creation at any directory level
@@ -242,10 +252,11 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 - CORS configuration required for browser uploads
 
 ## Performance Notes
-- File listings limited to 1000 items per request
+- File listings limited to 100 items per page (with Load More)
 - Direct browser uploads reduce server load
 - Pre-signed URLs cached for performance
-- Pagination recommended for large directories
+- Pagination implemented for large directories
+- Continuation token support for efficient S3 API usage
 
 ## Maintenance Notes
 - Regularly update AWS SDK
@@ -340,6 +351,55 @@ See `project-phases.md` for detailed phase breakdown and implementation roadmap.
 4. **Minimal Scope**: Make the minimum changes necessary to complete your task
 5. **Preserve Others' Work**: Don't modify files unless required for your specific task
 6. **Clear Handoffs**: Leave clear comments or documentation when your work affects shared components
+
+## Build Process & Environment Management
+
+### Development Environments
+1. **Main Project Directory** (`/Users/ippili1997/prismai`)
+   - Full Laravel installation with vendor/, node_modules/, .env
+   - Run `npm run dev` and `php artisan serve` here
+   - Primary development and testing environment
+
+2. **Conductor Workspace** (`.conductor/colombo`)
+   - Partial copy for isolated AI development
+   - Missing vendor/, node_modules/, .env by design
+   - Build works via Vite alias configuration
+
+### Build Configuration
+- **vite.config.js**: Dynamic alias for ZiggyVue module
+  - Checks for vendor/tightenco/ziggy existence
+  - Falls back to ziggy-mock.js in Conductor environment
+  - Ensures builds work in both environments
+
+- **Build Files Management**:
+  - `/public/build` added to .gitignore (August 2, 2025)
+  - Build files no longer tracked in Git
+  - Railway generates fresh builds on deployment
+
+### Git Workflow Best Practices
+1. **Before Starting Work**:
+   ```bash
+   git status
+   git fetch origin main
+   git log origin/main --oneline -10
+   ```
+
+2. **Checking for Conflicts**:
+   ```bash
+   git merge origin/main --no-commit --no-ff
+   git diff --name-only origin/main
+   ```
+
+3. **Committing Changes**:
+   - Stage specific files only: `git add <file>`
+   - Never use `git add .` unless necessary
+   - Clear, descriptive commit messages
+   - Verify staged files: `git status`
+
+4. **Handling Build Files**:
+   - Build files are git-ignored
+   - Railway handles production builds
+   - Local builds for testing only
 
 ## Development Guidelines
 - **AI Interaction Guidelines**:

@@ -4,10 +4,41 @@ export const ZiggyVue = {
         app.config.globalProperties.route = (name, params = {}, absolute = true) => {
             // Basic route helper for development
             const baseUrl = window.location.origin;
+            
+            // Handle missing name parameter
+            if (!name) {
+                console.error('Route name is undefined');
+                return '#';
+            }
+            
             let url = name;
             
             // Handle common routes
             switch(name) {
+                // Bucket routes
+                case 'buckets.index':
+                    url = '/buckets';
+                    break;
+                case 'buckets.create':
+                    url = '/buckets/create';
+                    break;
+                case 'buckets.store':
+                    url = '/buckets';
+                    break;
+                case 'buckets.test':
+                    url = `/buckets/${params.bucket}/test`;
+                    break;
+                case 'buckets.activate':
+                    url = `/buckets/${params.bucket}/activate`;
+                    break;
+                case 'buckets.rename':
+                    url = `/buckets/${params.bucket}/rename`;
+                    break;
+                case 'buckets.destroy':
+                    url = `/buckets/${params.bucket}`;
+                    break;
+                
+                // File routes
                 case 'files.index':
                     url = `/buckets/${params.bucket}/files`;
                     if (params.prefix) url += `?prefix=${encodeURIComponent(params.prefix)}`;
@@ -31,17 +62,70 @@ export const ZiggyVue = {
                 case 'files.move':
                     url = `/buckets/${params.bucket}/move`;
                     break;
+                case 'files.create-folder':
+                    url = `/buckets/${params.bucket}/create-folder`;
+                    break;
+                case 'files.folder-tree':
+                    url = `/buckets/${params.bucket}/folder-tree`;
+                    break;
+                
+                // Profile routes
+                case 'profile.edit':
+                    url = '/profile';
+                    break;
+                case 'profile.update':
+                    url = '/profile';
+                    break;
+                case 'profile.destroy':
+                    url = '/profile';
+                    break;
+                
+                // Auth routes
+                case 'login':
+                    url = '/login';
+                    break;
+                case 'logout':
+                    url = '/logout';
+                    break;
+                case 'register':
+                    url = '/register';
+                    break;
+                case 'password.request':
+                    url = '/password/reset';
+                    break;
+                
+                // Deprecated routes (keeping for backward compatibility)
                 case 'folders.create':
                     url = `/buckets/${params.bucket}/folders`;
                     break;
                 case 'folders.tree':
                     url = `/buckets/${params.bucket}/folders/tree`;
                     break;
+                
                 default:
                     url = '/' + name.replace(/\./g, '/');
             }
             
             return absolute ? baseUrl + url : url;
+        };
+        
+        // Add route().current() method for checking active routes
+        app.config.globalProperties.route.current = (pattern) => {
+            const currentPath = window.location.pathname;
+            
+            if (!pattern) {
+                return currentPath;
+            }
+            
+            // Handle wildcard patterns like 'buckets.*'
+            if (pattern.endsWith('.*')) {
+                const prefix = '/' + pattern.slice(0, -2).replace(/\./g, '/');
+                return currentPath.startsWith(prefix);
+            }
+            
+            // Handle exact matches
+            const routePath = '/' + pattern.replace(/\./g, '/');
+            return currentPath === routePath;
         };
     }
 };

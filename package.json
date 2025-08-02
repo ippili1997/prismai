@@ -6,7 +6,7 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "build": "vite build --force",
+        "build": "vite build",
         "dev": "vite"
     },
     "devDependencies": {

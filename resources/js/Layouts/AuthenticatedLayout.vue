@@ -41,12 +41,6 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Home
                                 </NavLink>
-                                <NavLink
-                                    :href="route('profile.edit')"
-                                    :active="route.current('profile.edit')"
-                                >
-                                    Profile
-                                </NavLink>
                             </div>
                         </div>
 
@@ -153,12 +147,6 @@ const showingNavigationDropdown = ref(false);
                             :active="route.current('buckets.*') || route.current('files.*')"
                         >
                             Home
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            :href="route('profile.edit')"
-                            :active="route.current('profile.edit')"
-                        >
-                            Profile
                         </ResponsiveNavLink>
                     </div>
 

@@ -12,6 +12,16 @@ export const ZiggyVue = {
                 return '#';
             }
             
+            // Normalize params - if it's a primitive (number/string), convert to object
+            if (typeof params === 'number' || typeof params === 'string') {
+                // For routes like buckets.*, files.*, the parameter is usually 'bucket'
+                if (name.startsWith('buckets.') || name.startsWith('files.')) {
+                    params = { bucket: params };
+                } else {
+                    params = { id: params };
+                }
+            }
+            
             let url = name;
             
             // Handle common routes

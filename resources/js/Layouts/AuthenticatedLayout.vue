@@ -37,13 +37,13 @@ const showingNavigationDropdown = ref(false);
                             >
                                 <NavLink
                                     :href="route('buckets.index')"
-                                    :active="route().current('buckets.*') || route().current('files.*')"
+                                    :active="route.current('buckets.*') || route.current('files.*')"
                                 >
                                     Home
                                 </NavLink>
                                 <NavLink
                                     :href="route('profile.edit')"
-                                    :active="route().current('profile.edit')"
+                                    :active="route.current('profile.edit')"
                                 >
                                     Profile
                                 </NavLink>
@@ -150,13 +150,13 @@ const showingNavigationDropdown = ref(false);
                     <div class="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink
                             :href="route('buckets.index')"
-                            :active="route().current('buckets.*') || route().current('files.*')"
+                            :active="route.current('buckets.*') || route.current('files.*')"
                         >
                             Home
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             :href="route('profile.edit')"
-                            :active="route().current('profile.edit')"
+                            :active="route.current('profile.edit')"
                         >
                             Profile
                         </ResponsiveNavLink>

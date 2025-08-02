@@ -3,26 +3,30 @@
 export const ZiggyVue = {
     install(app) {
         app.config.globalProperties.route = (name, params = {}, absolute = true) => {
-            // Basic route helper for development
-            const baseUrl = window.location.origin;
-            
-            // Handle missing name parameter
-            if (!name) {
-                console.error('Route name is undefined');
-                return '#';
-            }
-            
-            // Normalize params - if it's a primitive (number/string), convert to object
-            if (typeof params === 'number' || typeof params === 'string') {
-                // For routes like buckets.*, files.*, the parameter is usually 'bucket'
-                if (name.startsWith('buckets.') || name.startsWith('files.')) {
-                    params = { bucket: params };
-                } else {
-                    params = { id: params };
+            try {
+                // Basic route helper for development
+                const baseUrl = window.location.origin;
+                
+                // Handle missing name parameter
+                if (!name) {
+                    console.error('Route name is undefined');
+                    return '#';
                 }
-            }
-            
-            let url = name;
+                
+                // Debug logging (commented out for production)
+                // console.log(`Route called: ${name}`, 'Params:', params);
+                
+                // Normalize params - if it's a primitive (number/string), convert to object
+                if (typeof params === 'number' || typeof params === 'string') {
+                    // For routes like buckets.*, files.*, the parameter is usually 'bucket'
+                    if (name.startsWith('buckets.') || name.startsWith('files.')) {
+                        params = { bucket: params };
+                    } else {
+                        params = { id: params };
+                    }
+                }
+                
+                let url = name;
             
             // Handle common routes
             switch(name) {
@@ -32,6 +36,7 @@ export const ZiggyVue = {
                     break;
                 case 'buckets.create':
                     url = '/buckets/create';
+                    if (params.provider) url += `?provider=${params.provider}`;
                     break;
                 case 'buckets.store':
                     url = '/buckets';
@@ -117,7 +122,19 @@ export const ZiggyVue = {
                     url = '/' + name.replace(/\./g, '/');
             }
             
-            return absolute ? baseUrl + url : url;
+                // Check if URL contains undefined
+                if (url.includes('undefined')) {
+                    console.error(`Route ${name} generated invalid URL: ${url}`, 'Params:', params);
+                    throw new Error(`Invalid route parameters for ${name}`);
+                }
+                
+                const finalUrl = absolute ? baseUrl + url : url;
+                // console.log(`Route ${name} generated: ${finalUrl}`);
+                return finalUrl;
+            } catch (error) {
+                console.error('Error in route generation:', error, { name, params });
+                return '#';
+            }
         };
         
         // Add route().current() method for checking active routes

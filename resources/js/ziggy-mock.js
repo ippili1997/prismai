@@ -2,7 +2,8 @@
 // Updated: 2025-08-03 - Added route().current() method
 export const ZiggyVue = {
     install(app) {
-        app.config.globalProperties.route = (name, params = {}, absolute = true) => {
+        // Create the route function first
+        const route = (name, params = {}, absolute = true) => {
             try {
                 // Basic route helper for development
                 const baseUrl = window.location.origin;
@@ -137,8 +138,8 @@ export const ZiggyVue = {
             }
         };
         
-        // Add route().current() method for checking active routes
-        app.config.globalProperties.route.current = (pattern) => {
+        // Add current() method to the route function
+        route.current = (pattern) => {
             const currentPath = window.location.pathname;
             
             if (!pattern) {
@@ -155,5 +156,8 @@ export const ZiggyVue = {
             const routePath = '/' + pattern.replace(/\./g, '/');
             return currentPath === routePath;
         };
+        
+        // Now assign the complete route function to globalProperties
+        app.config.globalProperties.route = route;
     }
 };
